@@ -4,7 +4,9 @@
 
 import { Save } from './save.js';
 import { children, preview } from './save.js';
-import { RArray, strToJs } from './marshal.js';
+import {
+  RArray, strToJs, getIvar, setIvar,
+} from './marshal.js';
 import * as views from './views.js';
 import * as roster from './roster.js';
 import * as bag from './bag.js';
@@ -123,8 +125,8 @@ function recordChange(desc) {
 
 function monLabel(mon) {
   if (!mon) return 'a Pokémon';
-  const nick = strToJs(mon.ivars.find(([k]) => k === '@name')?.[1]);
-  const species = mon.ivars.find(([k]) => k === '@species')?.[1];
+  const nick = strToJs(getIvar(mon, '@name'));
+  const species = getIvar(mon, '@species');
   return nick || nameOf('species', species) || (species ? `species ${species}` : 'a Pokémon');
 }
 
@@ -242,9 +244,7 @@ const ROUTES = {
     pushUndo();
     const mon = s.get(b.path);
     if (!mon || mon.t !== 'obj') throw new Error('not a Pokemon');
-    const pair = mon.ivars.find(([k]) => k === '@iv');
-    const maxed = RArray([31, 31, 31, 31, 31, 31]);
-    if (pair) pair[1] = maxed; else mon.ivars.push(['@iv', maxed]);
+    setIvar(mon, '@iv', RArray([31, 31, 31, 31, 31, 31]));
     const r = recalcStats(mon);
     state.dirty = true;
     recordChange(`Maxed IVs for ${monLabel(mon)}`);

@@ -37,6 +37,17 @@ export const RArray = (items) => ({ t: 'array', items });
 export const RHash = (entries, dflt) => ({ t: 'hash', entries, default: dflt });
 export const RObject = (cls, ivars) => ({ t: 'obj', cls, ivars });
 
+/** Read one ivar off an obj/struct node, or undefined if it is absent (or `o` is nil). */
+export function getIvar(o, name) {
+  return o && o.ivars ? o.ivars.find(([k]) => k === name)?.[1] : undefined;
+}
+/** Set an ivar on an obj/struct node, creating it (in initialize order) if it isn't there yet. */
+export function setIvar(o, name, value) {
+  const pair = o.ivars.find(([k]) => k === name);
+  if (pair) pair[1] = value;
+  else o.ivars.push([name, value]);
+}
+
 const td = new TextDecoder('utf-8', { fatal: false });
 const te = new TextEncoder();
 
