@@ -84,6 +84,7 @@ const abilities = pbsList('PBS/abilities.txt');
 const trainerTypes = pbsList('PBS/trainertypes.txt');
 
 const moveByName = new Map(Object.entries(moves).map(([id, m]) => [m.i, Number(id)]));
+const abilityByName = new Map(Object.entries(abilities).map(([id, a]) => [a.i, Number(id)]));
 
 // --- species: names + level-up moves from PBS, numbers from dexdata.dat -------
 const RECORD = 76;
@@ -98,7 +99,7 @@ for (const line of ptxt.split(/\r?\n/)) {
   const sec = /^\[(\d+)\]/.exec(line);
   if (sec) { cur = Number(sec[1]); pbsSpecies[cur] = {}; continue; }
   if (cur === null) continue;
-  const m = /^(Name|InternalName|Moves)\s*=\s*(.*)$/.exec(line);
+  const m = /^(Name|InternalName|Moves|Abilities|HiddenAbility)\s*=\s*(.*)$/.exec(line);
   if (m) pbsSpecies[cur][m[1]] = m[2].trim();
 }
 
@@ -116,6 +117,9 @@ for (let id = 1; id <= speciesCount; id++) {
       if (Number.isFinite(lvl) && mid) lm.push([lvl, mid]);
     }
   }
+  const ab = (p.Abilities || '').split(',').map((n) => abilityByName.get(n.trim())).filter(Boolean);
+  const ha = p.HiddenAbility ? abilityByName.get(p.HiddenAbility.trim()) || 0 : 0;
+
   species[id] = {
     n: p.Name || `SPECIES${id}`,
     i: p.InternalName || '',
@@ -125,6 +129,8 @@ for (let id = 1; id <= speciesCount; id++) {
     gr: b(OFF.growthRate),
     xp: b(OFF.baseExp) | (b(OFF.baseExp + 1) << 8),
     lm,
+    ab,
+    ha,
   };
 }
 

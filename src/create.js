@@ -8,7 +8,9 @@
 import {
   RObject, RArray, jsToStr, strToJs, bignumToJs, getIvar, setIvar,
 } from './marshal.js';
-import { speciesData, speciesExists, movesAtLevel, movePP } from './gamedata.js';
+import {
+  speciesData, speciesExists, movesAtLevel, movePP, resolveAbility,
+} from './gamedata.js';
 import { startExperience, levelFromExperience, MAXLEVEL } from './expTable.js';
 
 const HP = 0; // PBStats::HP
@@ -258,6 +260,18 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, Math.floor(n)));
 }
 
+/**
+ * A Pokemon's gender (0 male, 1 female, null genderless), respecting an
+ * @genderflag override. Mirrors PokeBattle_Pokemon#gender: genderless species
+ * always report null, otherwise the personal ID picks within the species'
+ * female threshold (see speciesData's genderRate docs).
+ */
+function deriveGender(genderRate, pid, genderFlag) {
+  if (genderRate === 255) return null; // genderless, not overridable in-game
+  if (genderFlag === 0 || genderFlag === 1) return genderFlag;
+  return (pid % 256) < genderRate ? 1 : 0;
+}
+
 /** Derived facts about a Pokemon object, for display. */
 export function describe(mon) {
   const g = (n) => getIvar(mon, n);
@@ -266,13 +280,18 @@ export function describe(mon) {
   const tid = g('@trainerID') ?? 0;
   const natureFlag = g('@natureflag');
   const shinyFlag = g('@shinyflag');
+  const genderFlag = g('@genderflag');
+  const abilityFlag = g('@abilityflag');
   const a = (pid ^ tid) >>> 0;
   const derivedShiny = ((a & 0xffff) ^ ((a >>> 16) & 0xffff)) < 100; // SHINYPOKEMONCHANCE
+  const sd = speciesExists(species) ? speciesData(species) : null;
   return {
     species,
     nickname: strToJs(g('@name') ?? jsToStr('')),
     nature: natureFlag ?? pid % 25,
     shiny: shinyFlag === undefined || shinyFlag === null ? derivedShiny : shinyFlag === true,
-    level: levelFromExperience(g('@exp') ?? 0, speciesData(species).growthRate),
+    gender: sd ? deriveGender(sd.genderRate, pid, genderFlag) : null,
+    ability: sd ? resolveAbility(species, pid, abilityFlag) : null,
+    level: sd ? levelFromExperience(g('@exp') ?? 0, sd.growthRate) : null,
   };
 }

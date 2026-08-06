@@ -17,6 +17,8 @@ export function speciesExists(id) {
  *   baseStats  HP, Atk, Def, Spd, SpAtk, SpDef
  *   growthRate index into the experience table
  *   genderRate 0..253 female threshold, 254 always female, 255 genderless
+ *   abilities  [first, second] ability ids; second is omitted if it doesn't have one
+ *   hiddenAbility ability id, or 0 if it doesn't have one
  */
 export function speciesData(id) {
   const s = data().species[id];
@@ -31,7 +33,24 @@ export function speciesData(id) {
     growthRate: s.gr,
     baseExp: s.xp,
     levelMoves: s.lm,
+    abilities: s.ab || [],
+    hiddenAbility: s.ha || 0,
   };
+}
+
+/**
+ * The ability id a Pokemon actually has: the forced @abilityflag override
+ * (0 first, 1 second, 2 hidden) when set, otherwise the personal-ID-derived
+ * choice between its first and second ability (PokeBattle_Pokemon#ability).
+ */
+export function resolveAbility(species, personalID, abilityFlag) {
+  const sd = speciesData(species);
+  if (abilityFlag === 0 || abilityFlag === 1 || abilityFlag === 2) {
+    if (abilityFlag === 2) return sd.hiddenAbility || null;
+    return sd.abilities[abilityFlag] || sd.abilities[0] || null;
+  }
+  const natural = sd.abilities[personalID % 2] || sd.abilities[0];
+  return natural || null;
 }
 
 export function moveData(id) {

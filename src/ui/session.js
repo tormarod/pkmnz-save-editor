@@ -82,9 +82,12 @@ export async function refreshUndoButtons() {
   } catch { /* no file open yet */ }
 }
 
-// Runs after an edit recalculates a Pokemon's stats, if the caller has
-// registered one - app.js wires this to "reload the party tab if it's the one
-// currently showing" without src/ui/session.js needing to import the party tab.
+// Runs after an edit changes a Pokemon in a way its card header summarizes
+// (a recalculated stat, or a forced nature/gender/ability/shininess flag), if
+// the caller has registered one - app.js wires this to "reload the party tab
+// if it's the one currently showing" without src/ui/session.js needing to
+// import the party tab. `statsChanged` tells the hook whether to toast about
+// it: a recalculation is worth announcing, a plain flag flip isn't.
 let recalcHook = null;
 export function onRecalculated(fn) { recalcHook = fn; }
 
@@ -95,7 +98,31 @@ export async function setValue(path, value, node, label) {
     setDirty(true);
     refreshUndoButtons();
     node?.classList.add('changed');
-    if (r.recalculated && recalcHook) await recalcHook();
+    if (r.recalculated && recalcHook) await recalcHook(true);
+    return true;
+  } catch (e) {
+    toast(e.message, true);
+    return false;
+  }
+}
+
+/**
+ * Write one of a Pokemon's override flags (@shinyflag/@genderflag/@abilityflag/
+ * @natureflag), which may not exist as an ivar yet - see the OVERRIDE_FLAGS
+ * comment in views.js. `monPath` addresses the Pokemon itself, not the ivar.
+ * Always redraws the card so the header's derived-facts line stays in sync,
+ * since that line lives on the read side and won't update on its own.
+ */
+export async function setFlagValue(monPath, ivarName, value, node, label) {
+  try {
+    const r = await api('/api/pokemon/setFlag', {
+      method: 'POST',
+      body: JSON.stringify({ path: monPath, ivar: ivarName, value, label }),
+    });
+    setDirty(true);
+    refreshUndoButtons();
+    node?.classList.add('changed');
+    if (recalcHook) await recalcHook(r.recalculated);
     return true;
   } catch (e) {
     toast(e.message, true);
@@ -158,7 +185,7 @@ const optKey = (v) => (v === null || v === undefined || v === '' ? ' ' : String(
 /** An input bound to a Marshal path; commits on change. */
 export function boundInput(row, f) {
   const {
-    type, value, path, scalar, options, mask, kind, range,
+    type, value, path, scalar, options, mask, kind, range, ivar, monPath,
   } = f;
   // f.label is the human name for the field (from schema.js/views.js), used
   // to describe the edit in the "what will change" summary. Named fieldLabel
@@ -196,7 +223,10 @@ export function boundInput(row, f) {
     sel.onchange = async () => {
       const chosen = options.find((o) => optKey(o.value) === sel.value);
       const raw = chosen ? chosen.value : null;
-      if (!(await setValue(path, raw, row, fieldLabel))) sel.value = optKey(value);
+      const ok = monPath
+        ? await setFlagValue(monPath, ivar, raw, row, fieldLabel)
+        : await setValue(path, raw, row, fieldLabel);
+      if (!ok) sel.value = optKey(value);
     };
     return sel;
   }

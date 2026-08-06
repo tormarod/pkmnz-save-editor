@@ -58,6 +58,27 @@ check('an unforced Pokemon has no shinyflag ivar',
 check('nature falls out of the personal ID',
   describe(plain).nature === ivar(plain, '@personalID') % 25);
 
+// --- describe(): gender and ability -------------------------------------------
+// Bulbasaur: GenderRate=FemaleOneEighth (threshold 31), one regular ability
+// (Overgrow), hidden ability Chlorophyll.
+const femaleBulba = makePokemon({ species: 1, level: 5, speciesName: 'Bulbasaur', gender: 1 });
+check('a forced-female Pokemon describes as female', describe(femaleBulba).gender === 1);
+const maleBulba = makePokemon({ species: 1, level: 5, speciesName: 'Bulbasaur', gender: 0 });
+check('a forced-male Pokemon describes as male', describe(maleBulba).gender === 0);
+const naturalBulba = makePokemon({ species: 1, level: 5, speciesName: 'Bulbasaur' });
+check('an unforced Pokemon derives a gender from its personal ID',
+  describe(naturalBulba).gender === 0 || describe(naturalBulba).gender === 1);
+check('a species with a single ability always describes it, forced or not',
+  describe(naturalBulba).ability === describe(femaleBulba).ability);
+const hiddenBulba = makePokemon({ species: 1, level: 5, speciesName: 'Bulbasaur', ability: 2 });
+check('a forced-hidden-ability override changes the described ability',
+  describe(hiddenBulba).ability !== describe(naturalBulba).ability);
+
+// Magnemite: GenderRate=Genderless
+const magnemite = makePokemon({ species: 81, level: 5, speciesName: 'Magnemite' });
+check('a genderless species describes as genderless regardless of the personal ID',
+  describe(magnemite).gender === null);
+
 // --- validation --------------------------------------------------------------
 const rejects = (fn) => { try { fn(); return false; } catch { return true; } };
 check('rejects an out-of-range species', rejects(() => makePokemon({ species: 99999, level: 5 })));

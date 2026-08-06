@@ -66,12 +66,14 @@ const LOADERS = {
 let current = 'variables';
 const loaded = new Set();
 
-// Editing IVs/EVs/level/species recomputes the Pokemon's cached stats; if the
-// party tab is the one showing, redraw it so the new numbers are visible.
-onRecalculated(async () => {
+// Editing IVs/EVs/level/species recomputes the Pokemon's cached stats, and
+// forcing a nature/gender/ability/shininess override changes what the card
+// header summarizes; if the party tab is the one showing, redraw it so the
+// change is visible. Only the former is worth a toast.
+onRecalculated(async (statsChanged) => {
   if (current === 'party') {
     await loadParty();
-    toast('Stats recalculated');
+    if (statsChanged) toast('Stats recalculated');
   }
 });
 

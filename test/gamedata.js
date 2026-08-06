@@ -2,8 +2,11 @@
 // PBS/pokemon.txt, which is the text source the .dat is compiled from.
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { speciesData, speciesCount, movesAtLevel, moveData } from '../src/gamedata.js';
+import {
+  speciesData, speciesCount, movesAtLevel, moveData, resolveAbility,
+} from '../src/gamedata.js';
 import { GROWTH_RATES, startExperience, levelFromExperience } from '../src/expTable.js';
+import { data } from '../src/data.js';
 import { GAME_DIR, loadBundle, haveGame, makeChecker } from './helpers.js';
 
 loadBundle();
@@ -34,7 +37,9 @@ const GENDER = {
 
 console.log(`\nchecking the baked bundle (${speciesCount()} species) against PBS/pokemon.txt\n`);
 
-let statsBad = 0; let growthBad = 0; let happyBad = 0; let genderBad = 0; let expBad = 0;
+const abilityByName = new Map(Object.entries(data().abilities).map(([id, a]) => [a.i, Number(id)]));
+
+let statsBad = 0; let growthBad = 0; let happyBad = 0; let genderBad = 0; let expBad = 0; let abilityBad = 0;
 for (let id = 1; id <= speciesCount(); id++) {
   const p = pbs[id];
   if (!p || !p.BaseStats) continue;
@@ -44,18 +49,26 @@ for (let id = 1; id <= speciesCount(); id++) {
   if (Number(p.Happiness) !== d.happiness) happyBad++;
   if (GENDER[p.GenderRate] !== undefined && GENDER[p.GenderRate] !== d.genderRate) genderBad++;
   if (Number(p.BaseEXP) !== d.baseExp) expBad++;
+  const expectAb = (p.Abilities || '').split(',').map((n) => abilityByName.get(n.trim())).filter(Boolean);
+  const expectHa = p.HiddenAbility ? (abilityByName.get(p.HiddenAbility.trim()) || 0) : 0;
+  if (expectAb.join() !== d.abilities.join() || expectHa !== d.hiddenAbility) abilityBad++;
 }
 check('base stats match PBS for every species', statsBad === 0, `${statsBad} mismatches`);
 check('growth rates match PBS', growthBad === 0, `${growthBad} mismatches`);
 check('base happiness matches PBS', happyBad === 0, `${happyBad} mismatches`);
 check('gender rates match PBS', genderBad === 0, `${genderBad} mismatches`);
 check('base EXP matches PBS', expBad === 0, `${expBad} mismatches`);
+check('abilities match PBS', abilityBad === 0, `${abilityBad} mismatches`);
 
 // Bulbasaur, spot-checked by hand against the PBS entry above
 const bulba = speciesData(1);
 check('Bulbasaur base stats are 50,49,49,45,65,65', bulba.baseStats.join() === '50,49,49,45,65,65', bulba.baseStats.join());
 check('Bulbasaur growth rate is Parabolic', GROWTH_RATES[bulba.growthRate] === 'Parabolic', GROWTH_RATES[bulba.growthRate]);
 check('Bulbasaur happiness is 70', bulba.happiness === 70, String(bulba.happiness));
+check('Bulbasaur has one regular ability (Overgrow)', bulba.abilities.join() === String(abilityByName.get('OVERGROW')), bulba.abilities.join());
+check('Bulbasaur\'s hidden ability is Chlorophyll', bulba.hiddenAbility === abilityByName.get('CHLOROPHYLL'), String(bulba.hiddenAbility));
+check('resolveAbility falls back to the only regular ability', resolveAbility(1, 0, undefined) === abilityByName.get('OVERGROW'));
+check('resolveAbility honours a hidden-ability override', resolveAbility(1, 0, 2) === abilityByName.get('CHLOROPHYLL'));
 
 // exp table behaviour
 // 6/5*18^3 - 15*18^2 + 100*18 - 140 = 3798.4 -> 3798, the Medium Slow curve

@@ -251,6 +251,26 @@ const ROUTES = {
     return { ok: true, ...r };
   },
 
+  // The four override flags (@shinyflag/@genderflag/@abilityflag/@natureflag)
+  // are nil-by-default and often simply absent from the ivar list, so they
+  // can't go through the generic /api/set (which requires the ivar to
+  // already exist) - this creates it on first use instead.
+  '/api/pokemon/setFlag': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    if (!mon || mon.t !== 'obj') throw new Error('not a Pokemon');
+    if (!views.OVERRIDE_FLAGS.includes(b.ivar)) throw new Error(`not an overridable flag: ${b.ivar}`);
+    const before = getIvar(mon, b.ivar) ?? null;
+    const value = b.value === undefined ? null : b.value;
+    setIvar(mon, b.ivar, value);
+    state.dirty = true;
+    recordFieldChange(b.label, [...b.path, { k: 'v', name: b.ivar }], before, value);
+    const recalculated = b.ivar === '@natureflag';
+    if (recalculated) recalcStats(mon);
+    return { ok: true, recalculated };
+  },
+
   '/api/pokemon/contest': (b) => {
     const s = need();
     pushUndo();

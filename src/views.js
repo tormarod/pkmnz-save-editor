@@ -2,13 +2,36 @@
 // Marshal path it came from, so the UI can write back through the generic
 // Save#set without any per-tab save logic.
 
-import { SECTIONS, fieldInfo } from './schema.js';
+import { SECTIONS, fieldInfo, NATURES } from './schema.js';
 import { labels, nameOf, special } from './labels.js';
 import { strToJs, floatText, getIvar as ivar } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 import { speciesExists, speciesData, itemInternalName } from './gamedata.js';
 import { levelFromExperience, MAXLEVEL } from './expTable.js';
-import { CONTEST_IVARS, CONTEST_NAMES } from './create.js';
+import { CONTEST_IVARS, CONTEST_NAMES, describe } from './create.js';
+
+/** The four ivars that force a Pokemon's nature/gender/ability/shininess away from its personal ID. */
+export const OVERRIDE_FLAGS = ['@shinyflag', '@genderflag', '@abilityflag', '@natureflag'];
+
+/**
+ * What each override dropdown falls back to when left on "Natural" — shown
+ * next to the field so that option has a visible meaning instead of just
+ * naming where the value comes from.
+ */
+function derivedFor(name, d) {
+  switch (name) {
+    case '@genderflag':
+      return d.gender === null ? null : (d.gender === 1 ? '♀ Female' : '♂ Male');
+    case '@natureflag':
+      return NATURES[d.nature] ?? null;
+    case '@abilityflag':
+      return nameOf('abilities', d.ability) || (d.ability ? `ability ${d.ability}` : null);
+    case '@shinyflag':
+      return d.shiny ? '✨ Shiny' : 'Not shiny';
+    default:
+      return null;
+  }
+}
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
 const num = (v) => (typeof v === 'number' ? v : null);
@@ -162,9 +185,19 @@ function pokemon(mon, path) {
     ppPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@pp' }],
   })).filter((m) => m.id);
 
+  const d = describe(mon);
+
   const field = (name) => {
-    const v = g(name);
-    if (v === undefined) return null;
+    const raw = g(name);
+    // The four override flags are nil-by-default and the game never sets
+    // them unless something explicitly forces the value (see makePokemon in
+    // create.js), so most Pokemon simply don't carry the ivar at all. Show
+    // the field anyway - "not forced" is a real, meaningful state - and
+    // route its writes through setFlagValue (see session.js), which creates
+    // the ivar on first use instead of failing to locate it.
+    const isFlag = OVERRIDE_FLAGS.includes(name);
+    if (raw === undefined && !isFlag) return null;
+    const v = raw === undefined ? null : raw;
     const info = fieldInfo('PokeBattle_Pokemon', name);
     return {
       ivar: name,
@@ -175,9 +208,11 @@ function pokemon(mon, path) {
       mask: info.mask,
       type: typeOf(v),
       value: isScalar(v) ? editValue(v) : null,
-      scalar: isScalar(v),
+      scalar: isFlag ? true : isScalar(v),
       preview: preview(v),
       resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
+      derived: derivedFor(name, d),
+      monPath: isFlag ? path : undefined,
       path: [...path, { k: 'v', name }],
     };
   };
@@ -217,6 +252,12 @@ function pokemon(mon, path) {
     species,
     speciesName: nameOf('species', species),
     nickname: text(g('@name')),
+    describe: {
+      gender: d.gender === null ? null : (d.gender === 1 ? '♀' : '♂'),
+      nature: NATURES[d.nature] ?? null,
+      shiny: d.shiny,
+      abilityName: nameOf('abilities', d.ability),
+    },
     level,
     maxLevel: MAXLEVEL,
     growthRate,

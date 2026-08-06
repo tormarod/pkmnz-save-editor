@@ -26,6 +26,14 @@ function monCard(mon, title, loc) {
   bits.push(`HP ${mon.hp}/${mon.totalhp}`);
   h.append(el('small', null, bits.join(' · ')));
 
+  const d = mon.describe || {};
+  const dbits = [];
+  if (d.gender) dbits.push(d.gender);
+  if (d.nature) dbits.push(d.nature);
+  if (d.shiny) dbits.push('✨ Shiny');
+  if (d.abilityName) dbits.push(d.abilityName);
+  if (dbits.length) h.append(el('small', null, dbits.join(' · ')));
+
   if (loc) {
     h.append(el('span', 'spacer'));
     const move = el('button', 'tiny', loc.where === 'party' ? 'To box' : 'To party');
@@ -123,6 +131,7 @@ function monCard(mon, title, loc) {
     row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
     row.append(boundInput(row, { ...f, label: `${monName}: ${f.label || f.ivar.replace(/^@/, '')}` }));
     if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.derived) row.append(el('span', 'note', `natural: ${f.derived}`));
     if (f.note) row.append(el('span', 'note', f.note));
     grid.append(row);
   }
