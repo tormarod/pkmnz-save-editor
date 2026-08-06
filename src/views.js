@@ -6,6 +6,8 @@ import { SECTIONS, fieldInfo } from './schema.js';
 import { labels, nameOf, special } from './labels.js';
 import { strToJs, floatText } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
+import { speciesExists, speciesData, itemInternalName } from './gamedata.js';
+import { levelFromExperience, MAXLEVEL } from './expTable.js';
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
 const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
@@ -68,6 +70,7 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
     out.push({
       index: i,
       name: named || null,
+      label: `${isSwitches ? 'Switch' : 'Variable'} ${i}${named ? ` "${named}"` : ''}`,
       special: special(named),
       type: untouchedSwitch ? 'bool' : typeOf(v),
       value: untouchedSwitch ? false : (isScalar(v) ? editValue(v) : null),
@@ -134,6 +137,7 @@ export function bag(save) {
       return {
         id: num(id),
         name: nameOf('items', num(id)),
+        internal: itemInternalName(num(id)),
         qty: num(qty),
         idPath: [...p, { k: 'i', i: 0 }],
         qtyPath: [...p, { k: 'i', i: 1 }],
@@ -191,21 +195,32 @@ function pokemon(mon, path) {
   const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD']; // Spe = Speed
   const statValues = STAT_IVARS.map((name, i) => ({ name: STAT_NAMES[i], value: num(g(name)) }));
 
+  // The game only ever stores exp; level is derived from it via the species'
+  // growth rate (levelFromExperience), so compute it here for display and
+  // give the UI an @exp path to write through when the user edits the level.
+  const exp = num(g('@exp'));
+  const growthRate = speciesExists(species) ? speciesData(species).growthRate : null;
+  const level = growthRate !== null ? levelFromExperience(exp ?? 0, growthRate) : null;
+
   return {
     species,
     speciesName: nameOf('species', species),
     nickname: text(g('@name')),
-    level: null, // the game derives level from exp; shown as exp instead
-    exp: num(g('@exp')),
+    level,
+    maxLevel: MAXLEVEL,
+    growthRate,
+    exp,
+    expPath: [...path, { k: 'v', name: '@exp' }],
     statValues,
     hp: num(g('@hp')),
     totalhp: num(g('@totalhp')),
     item: num(g('@item')),
     itemName: nameOf('items', num(g('@item'))),
+    itemInternal: itemInternalName(num(g('@item'))),
     egg: (num(g('@eggsteps')) || 0) > 0,
     moves,
     stats,
-    fields: ['@species', '@name', '@exp', '@hp', '@item', '@happiness', '@status',
+    fields: ['@species', '@name', '@hp', '@item', '@happiness', '@status',
       '@statusCount', '@eggsteps', '@obtainLevel', '@ballused', '@pokerus', '@markings',
       '@shinyflag', '@genderflag', '@abilityflag', '@natureflag', '@ot', '@otgender', '@obtainMode']
       .map(field).filter(Boolean),

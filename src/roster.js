@@ -8,11 +8,22 @@
 import { RArray, jsToStr, strToJs } from './marshal.js';
 import { makePokemon } from './create.js';
 import { nameOf } from './labels.js';
+import { movePP } from './gamedata.js';
 
 export const PARTY_MAX = 6;
 export const BOX_SIZE = 30;
 
 const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
+const setIvar = (o, n, v) => {
+  const pair = o.ivars.find(([k]) => k === n);
+  if (pair) pair[1] = v;
+  else o.ivars.push([n, v]);
+};
+
+/** A move's max PP with PP Ups applied: mirrors PokeBattle_Move#totalpp (base * (5+ppup)/5). */
+function maxPP(moveId, ppup) {
+  return Math.floor(movePP(moveId) * (5 + (ppup || 0)) / 5);
+}
 
 function partyArray(save) {
   const tr = save.section('trainer');
@@ -124,6 +135,34 @@ export function partyToBox(save, index, boxIndex) {
   mons.items[slot] = mon;
   party.items.splice(index, 1);
   return { box: boxIndex, slot };
+}
+
+/** Restore every party Pokemon to full HP, no status, and full move PP. */
+export function healParty(save) {
+  const party = partyArray(save);
+  let healed = 0;
+  for (const mon of party.items) {
+    if (!mon || mon.t !== 'obj') continue;
+    setIvar(mon, '@hp', ivar(mon, '@totalhp') ?? 0);
+    setIvar(mon, '@status', 0);
+    setIvar(mon, '@statusCount', 0);
+    for (const m of ivar(mon, '@moves')?.items || []) {
+      const id = ivar(m, '@id');
+      if (!id) continue;
+      setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
+    }
+    healed++;
+  }
+  return { healed };
+}
+
+/** Sort a box's occupied slots by species id, compacted to the front. */
+export function sortBox(save, boxIndex) {
+  const { mons } = boxArray(save, boxIndex);
+  const filled = mons.items.filter(Boolean);
+  filled.sort((a, b) => (ivar(a, '@species') ?? 0) - (ivar(b, '@species') ?? 0));
+  for (let i = 0; i < mons.items.length; i++) mons.items[i] = filled[i] ?? null;
+  return { count: filled.length };
 }
 
 export { RArray, jsToStr };

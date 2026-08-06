@@ -43,3 +43,16 @@ export function addItem(save, opts) {
   pocket.items.push(RArray([item, qty]));
   return { pocket: pocketIndex, qty, stacked: false };
 }
+
+/** Set every item already in a pocket to the max stack size. */
+export function maxPocket(save, pocketIndex) {
+  const pocket = pocketArray(save, pocketIndex);
+  let count = 0;
+  for (const entry of pocket.items) {
+    if (entry?.items?.length === 2 && entry.items[1] !== MAX_QUANTITY) {
+      entry.items[1] = MAX_QUANTITY;
+      count++;
+    }
+  }
+  return { count, total: pocket.items.length };
+}

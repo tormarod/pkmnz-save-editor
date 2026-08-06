@@ -43,6 +43,11 @@ export function itemExists(id) {
   return Number.isInteger(id) && id >= 1 && !!data().items[id];
 }
 
+/** The PBS internal name (e.g. "POKEBALL"), for matching against external icon sets. */
+export function itemInternalName(id) {
+  return data().items[id]?.i || null;
+}
+
 /** The bag pocket (1..N, matching items.txt's Pocket field) an item belongs in. */
 export function itemPocket(id) {
   return data().items[id]?.pocket || null;
