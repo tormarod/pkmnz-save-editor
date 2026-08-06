@@ -2,15 +2,20 @@
 // files; this just lets you try them before pushing, since ES modules and
 // fetch() do not work from a file:// URL.
 //
-//   node tools/serve.js [port]
+//   node tools/serve.js [port] [root]
+//
+// The optional root lets the smoke test serve the site from a subdirectory, the
+// way GitHub Pages serves it under /<repo>/.
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, dirname } from 'node:path';
+import { extname, join, normalize, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.argv[2]) || 4173;
+const ROOT = process.argv[3]
+  ? resolve(process.argv[3])
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -24,7 +29,8 @@ const MIME = {
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  const rel = url.pathname === '/' ? 'index.html' : normalize(url.pathname).replace(/^[\\/]+/, '');
+  let rel = normalize(url.pathname).replace(/^[\\/]+/, '');
+  if (rel === '' || rel.endsWith('\\') || rel.endsWith('/')) rel = join(rel, 'index.html');
   const file = join(ROOT, rel);
   if (!file.startsWith(ROOT)) { res.writeHead(403).end('forbidden'); return; }
   try {
