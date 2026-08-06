@@ -4,14 +4,13 @@
 
 import { SECTIONS, fieldInfo } from './schema.js';
 import { labels, nameOf, special } from './labels.js';
-import { strToJs, floatText } from './marshal.js';
+import { strToJs, floatText, getIvar as ivar } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 import { speciesExists, speciesData, itemInternalName } from './gamedata.js';
 import { levelFromExperience, MAXLEVEL } from './expTable.js';
 import { CONTEST_IVARS, CONTEST_NAMES } from './create.js';
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
-const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
 const num = (v) => (typeof v === 'number' ? v : null);
 const text = (v) => (v && v.t === 'str' ? strToJs(v) : null);
 

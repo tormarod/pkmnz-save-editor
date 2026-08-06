@@ -5,10 +5,8 @@
 // convention - see indexedList() in views.js): PBS/items.txt numbers its
 // Pocket field 1..8, and the save uses that same number as the array index.
 
-import { RArray } from './marshal.js';
+import { RArray, getIvar as ivar } from './marshal.js';
 import { itemExists, itemPocket } from './gamedata.js';
-
-const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
 
 /** The highest quantity a single bag entry can hold, per the game's item screen. */
 export const MAX_QUANTITY = 999;

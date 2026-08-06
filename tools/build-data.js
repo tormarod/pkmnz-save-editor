@@ -14,7 +14,7 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadAll, strToJs } from '../src/marshal.js';
+import { loadAll, strToJs, getIvar as ivar } from '../src/marshal.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '..', 'data', 'gamedata.json');
@@ -38,8 +38,6 @@ const rx = (rel) => {
   const p = join(GAME_DIR, rel);
   return existsSync(p) ? loadAll(new Uint8Array(readFileSync(p)))[0].value : null;
 };
-const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
-
 // --- names from Data/System.rxdata -------------------------------------------
 const sys = rx('Data/System.rxdata');
 const namesFrom = (which) => {

@@ -5,7 +5,9 @@
 // Mirrored from 122_PokeBattle_Pokemon.rb: initialize, calcStats, calcHP,
 // calcStat, level=, nature, gender, isShiny?, and PBMove#initialize.
 
-import { RObject, RArray, jsToStr, strToJs, bignumToJs } from './marshal.js';
+import {
+  RObject, RArray, jsToStr, strToJs, bignumToJs, getIvar, setIvar,
+} from './marshal.js';
 import { speciesData, speciesExists, movesAtLevel, movePP } from './gamedata.js';
 import { startExperience, levelFromExperience, MAXLEVEL } from './expTable.js';
 
@@ -48,12 +50,6 @@ export const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk'
 /** Editing any of these changes the stats, so they have to be recomputed. */
 export const STAT_INPUTS = ['@iv', '@ev', '@exp', '@species', '@natureflag', '@personalID'];
 
-const getIvar = (mon, name) => mon.ivars.find(([k]) => k === name)?.[1];
-const setIvar = (mon, name, value) => {
-  const pair = mon.ivars.find(([k]) => k === name);
-  if (pair) pair[1] = value;
-  else mon.ivars.push([name, value]);
-};
 const plain = (v) => (typeof v === 'number' ? v : v && v.t === 'bignum' ? bignumToJs(v) : 0);
 
 /**
@@ -264,7 +260,7 @@ function clamp(v, lo, hi) {
 
 /** Derived facts about a Pokemon object, for display. */
 export function describe(mon) {
-  const g = (n) => mon.ivars.find(([k]) => k === n)?.[1];
+  const g = (n) => getIvar(mon, n);
   const species = g('@species');
   const pid = g('@personalID') ?? 0;
   const tid = g('@trainerID') ?? 0;

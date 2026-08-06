@@ -12,8 +12,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(HERE, '..');
 
 /** The game install, only needed by tests that read the original .rxdata files. */
-export const GAME_DIR = process.env.PKMNZ_GAME_DIR
-  || 'C:/Users/torma/Documents/LostieLauncher/Pokémon Z';
+export const GAME_DIR = process.env.PKMNZ_GAME_DIR || '';
 
 export const SAVE_DIR = process.env.PKMNZ_SAVE_DIR
   || join(homedir(), 'Saved Games', 'Pokemon Z');
