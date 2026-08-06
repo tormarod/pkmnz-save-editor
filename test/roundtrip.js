@@ -2,16 +2,18 @@
 // out, and require the bytes to match exactly. If this passes, the codec is not
 // silently reshaping anything when the editor rewrites a save.
 //
-// Needs a real game install. Point PKMNZ_GAME_DIR / PKMNZ_SAVE_DIR at yours.
+// Always runs against the committed fixture in test/fixtures/; also checks a
+// real game install / save folder when PKMNZ_GAME_DIR / PKMNZ_SAVE_DIR point
+// at one, for extra coverage on a maintainer's machine.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { loadAll, dumpAll } from '../src/marshal.js';
-import { GAME_DIR, SAVE_DIR, haveGame } from './helpers.js';
+import { GAME_DIR, SAVE_DIR, FIXTURE_DIR } from './helpers.js';
 
 function collect() {
   const files = [];
-  for (const dir of [SAVE_DIR, join(GAME_DIR, 'Data')]) {
+  for (const dir of [SAVE_DIR, join(GAME_DIR, 'Data'), FIXTURE_DIR]) {
     let names;
     try { names = readdirSync(dir); } catch { continue; }
     for (const n of names) {
@@ -31,9 +33,9 @@ function firstDiff(a, b) {
 
 const files = collect();
 if (!files.length) {
-  console.log(`no .rxdata found in ${SAVE_DIR} or ${GAME_DIR}/Data`);
-  console.log(haveGame() ? 'skipping' : 'set PKMNZ_GAME_DIR to a Pokemon Z install to run this test');
-  process.exit(0);
+  // Should be unreachable: FIXTURE_DIR is committed. Only hit if it's missing.
+  console.log(`no .rxdata found in ${SAVE_DIR}, ${GAME_DIR}/Data, or the fixture dir`);
+  process.exit(1);
 }
 
 let pass = 0;
