@@ -128,8 +128,11 @@ export class Save {
 
 /** Keep the existing Marshal type when assigning a new value from the UI. */
 function coerce(old, raw) {
+  // An explicit null (e.g. picking "Natural" on a forced-ability/gender/nature/
+  // shiny dropdown) always clears the field back to nil, regardless of what
+  // was there before - these ivars are nil-by-default in the game's own code.
+  if (raw === null) return null;
   if (old === null || old === undefined) {
-    if (raw === null) return null;
     if (typeof raw === 'boolean' || typeof raw === 'number') return raw;
     return jsToStr(String(raw));
   }
@@ -238,7 +241,7 @@ export function children(save, path) {
   if (v.t === 'obj' || v.t === 'struct') {
     for (const [name, val] of v.ivars) {
       const info = fieldInfo(v.cls, name);
-      const extra = { note: info.note };
+      const extra = { note: info.note, kind: info.kind, options: info.options, mask: info.mask };
       if (info.kind && typeof val === 'number') {
         const nm = nameOf(info.kind, val);
         if (nm) extra.resolved = nm;

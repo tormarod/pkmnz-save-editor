@@ -79,7 +79,8 @@ function pbsList(rel, extra) {
   return out;
 }
 
-const items = pbsList('PBS/items.txt');
+// Pocket is field 5 (1-based) of items.txt: id,InternalName,Name,NamePlural,Pocket,...
+const items = pbsList('PBS/items.txt', (p) => ({ pocket: Number(p[4]) || 0 }));
 const moves = pbsList('PBS/moves.txt', (p) => ({ pp: Number(p[8]) || 5 }));
 const abilities = pbsList('PBS/abilities.txt');
 const trainerTypes = pbsList('PBS/trainertypes.txt');

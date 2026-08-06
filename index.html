@@ -66,7 +66,21 @@
   </div>
 
   <div class="panel hidden" data-panel="trainer"><div id="trainerBody"></div></div>
-  <div class="panel hidden" data-panel="bag"><div id="bagBody"></div></div>
+  <div class="panel hidden" data-panel="bag">
+    <details id="addItemBox" class="card addcard">
+      <summary>Add an item</summary>
+      <div class="addgrid">
+        <label class="wide">Item
+          <input type="search" id="addItemText2" list="itemList" placeholder="Type a name or number…" autocomplete="off">
+        </label>
+        <label>Quantity <input type="number" id="addItemQty" value="1" min="1" max="999"></label>
+      </div>
+      <p class="hint" id="addItemPreview"></p>
+      <button id="addItemGo" class="primary">Add to bag</button>
+      <span class="note">Goes into the pocket the game itself uses for that item.</span>
+    </details>
+    <div id="bagBody"></div>
+  </div>
   <div class="panel hidden" data-panel="party">
     <details id="addBox" class="card addcard">
       <summary>Add a Pokémon</summary>

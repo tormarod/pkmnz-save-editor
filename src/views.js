@@ -2,8 +2,8 @@
 // Marshal path it came from, so the UI can write back through the generic
 // Save#set without any per-tab save logic.
 
-import { SECTIONS } from './schema.js';
-import { labels, nameOf } from './labels.js';
+import { SECTIONS, fieldInfo } from './schema.js';
+import { labels, nameOf, special } from './labels.js';
 import { strToJs, floatText } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 
@@ -54,16 +54,23 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
   if (!data) return [];
   const names = labels()[labelTable];
   const out = [];
+  // A switch that has never been touched by an event reads as nil, not
+  // false - Ruby treats both as "off", so present it as an unchecked box
+  // rather than a blank text field. Otherwise a typed edit would coerce to a
+  // String (see coerce() in save.js) instead of the boolean the game expects.
+  const isSwitches = sectionKey === 'switches';
   data.items.forEach((v, i) => {
     if (i === 0) return; // index 0 is unused in RPG Maker
     const named = names[i];
     const isDefault = v === null || v === 0 || v === false;
     if (onlySet && !named && isDefault) return;
+    const untouchedSwitch = isSwitches && v === null;
     out.push({
       index: i,
       name: named || null,
-      type: typeOf(v),
-      value: isScalar(v) ? editValue(v) : null,
+      special: special(named),
+      type: untouchedSwitch ? 'bool' : typeOf(v),
+      value: untouchedSwitch ? false : (isScalar(v) ? editValue(v) : null),
       preview: preview(v),
       scalar: isScalar(v),
       path: [{ k: 's', i: S(sectionKey) }, { k: 'v', name: '@data' }, { k: 'i', i }],
@@ -85,13 +92,18 @@ export function trainer(save) {
   for (const name of simple) {
     const v = ivar(tr, name);
     if (v === undefined) continue;
+    const info = fieldInfo('PokeBattle_Trainer', name);
     fields.push({
       ivar: name,
+      label: info.label,
+      note: info.note,
+      kind: info.kind,
+      options: info.options,
       type: typeOf(v),
       value: isScalar(v) ? editValue(v) : null,
       scalar: isScalar(v),
       preview: preview(v),
-      resolved: name === '@trainertype' ? nameOf('trainerTypes', v) : null,
+      resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
       path: [...base, { k: 'v', name }],
     });
   }
@@ -149,12 +161,19 @@ function pokemon(mon, path) {
   const field = (name) => {
     const v = g(name);
     if (v === undefined) return null;
+    const info = fieldInfo('PokeBattle_Pokemon', name);
     return {
       ivar: name,
+      label: info.label,
+      note: info.note,
+      kind: info.kind,
+      options: info.options,
+      mask: info.mask,
       type: typeOf(v),
       value: isScalar(v) ? editValue(v) : null,
       scalar: isScalar(v),
       preview: preview(v),
+      resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
       path: [...path, { k: 'v', name }],
     };
   };
@@ -187,8 +206,8 @@ function pokemon(mon, path) {
     moves,
     stats,
     fields: ['@species', '@name', '@exp', '@hp', '@item', '@happiness', '@status',
-      '@statusCount', '@eggsteps', '@obtainLevel', '@ballused', '@pokerus',
-      '@shinyflag', '@genderflag', '@abilityflag', '@natureflag', '@ot']
+      '@statusCount', '@eggsteps', '@obtainLevel', '@ballused', '@pokerus', '@markings',
+      '@shinyflag', '@genderflag', '@abilityflag', '@natureflag', '@ot', '@otgender', '@obtainMode']
       .map(field).filter(Boolean),
     path,
   };

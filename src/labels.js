@@ -6,6 +6,29 @@ import { data } from './data.js';
 
 const TABLES = ['variables', 'switches', 'maps', 'species', 'items', 'moves', 'abilities', 'trainerTypes'];
 
+// Pokemon Essentials ships its default project with switches 14-30ish
+// pre-named as reminders of common scripted conditions ("s:pbIsWeekday(...)",
+// "s:PBDayNight.isMorning?", ...) and a run of slots explicitly blanked out
+// as "----RESERVED-----". Neither is a real, currently-functional toggle:
+// - "s:" names are read by nothing at runtime; they're notes telling the
+//   event editor "use this script call in a conditional branch instead of a
+//   plain switch". Flipping the switch itself does nothing in-game.
+// - "RESERVED" slots are just blocked out for future use and nothing checks
+//   them (yet). Editing them is harmless but has no visible effect.
+const RESERVED_RE = /^-+\s*RESERVED\s*-+$/i;
+
+/**
+ * 'reserved' | 'computed' | null - what kind of non-functional name (if any)
+ * this variable/switch has, so the UI can flag it instead of implying it is
+ * an ordinary, game-read toggle.
+ */
+export function special(name) {
+  if (!name) return null;
+  if (RESERVED_RE.test(name)) return 'reserved';
+  if (name.startsWith('s:')) return 'computed';
+  return null;
+}
+
 /** Display name for an entry, whichever shape the table uses. */
 function entryName(e) {
   if (e === undefined || e === null) return null;
