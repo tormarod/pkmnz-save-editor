@@ -309,7 +309,8 @@ function monCard(mon, title, loc) {
     const wrap = el('div', 'field');
     wrap.append(el('label', null, s.ivar.replace(/^@/, '')));
     const line = el('div', 'badges');
-    const STAT = ['HP', 'Atk', 'Def', 'Spd', 'SpA', 'SpD'];
+    // "Spe" for Speed, not "Spd" — too easy to misread as SpD (Sp. Defense).
+    const STAT = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD'];
     s.values.forEach((v, i) => {
       const lab = el('label', null, `${STAT[i] || i} `);
       const inp = el('input');
@@ -403,13 +404,16 @@ function pickId(text, opts) {
 
 function statInputs(container, def, max) {
   container.innerHTML = '';
-  const STAT = ['HP', 'Atk', 'Def', 'Spd', 'SpA', 'SpD'];
+  // PBStats order. "Spe" is Speed and "SpD" is Sp. Defense — spelled out in the
+  // tooltip because those two are otherwise a keystroke apart.
+  const STAT = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD'];
+  const FULL = ['HP', 'Attack', 'Defense', 'Speed', 'Sp. Attack', 'Sp. Defense'];
   return STAT.map((label, i) => {
     const inp = el('input');
     inp.type = 'number';
     inp.min = 0;
     inp.max = max;
-    inp.title = label;
+    inp.title = FULL[i];
     inp.placeholder = label;
     if (def !== null) inp.value = def;
     container.append(inp);

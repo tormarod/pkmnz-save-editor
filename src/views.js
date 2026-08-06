@@ -169,7 +169,7 @@ function pokemon(mon, path) {
 
   // The six stats the game caches in the save and reads back directly.
   const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk', '@spdef'];
-  const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spd', 'SpA', 'SpD'];
+  const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD']; // Spe = Speed
   const statValues = STAT_IVARS.map((name, i) => ({ name: STAT_NAMES[i], value: num(g(name)) }));
 
   return {
