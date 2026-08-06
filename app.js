@@ -10,6 +10,9 @@ import {
 } from './src/ui/session.js';
 import { makeIndexedTab } from './src/ui/tabs/indexed.js';
 import { loadTrainer } from './src/ui/tabs/trainer.js';
+import { loadWorld } from './src/ui/tabs/world.js';
+import { loadOptions } from './src/ui/tabs/options.js';
+import { loadDex, initDexTab } from './src/ui/tabs/dex.js';
 import { loadBag, initBagAddForm } from './src/ui/tabs/bag.js';
 import { loadParty, initAddForm } from './src/ui/tabs/party.js';
 import { loadTree } from './src/ui/tabs/rawTree.js';
@@ -58,10 +61,17 @@ const LOADERS = {
   variables: makeIndexedTab('variables', '#varList', '#varFilter', '#varOnlySet'),
   switches: makeIndexedTab('switches', '#swList', '#swFilter', '#swOnlySet'),
   trainer: loadTrainer,
+  world: loadWorld,
+  options: loadOptions,
+  dex: async () => { initDexTab(); await loadDex(); },
   bag: async () => { await initBagAddForm(); await loadBag(); },
   party: async () => { await initAddForm(); await loadParty(); },
   raw: loadTree,
 };
+
+// Same order as the tab buttons in index.html, for the 1-9 shortcut.
+const TAB_ORDER = ['variables', 'switches', 'trainer', 'world', 'options', 'dex', 'bag', 'party', 'raw'];
+const FILTER_SEL = { variables: '#varFilter', switches: '#swFilter', dex: '#dexFilter' };
 
 let current = 'variables';
 const loaded = new Set();
@@ -154,6 +164,7 @@ async function openFile(file) {
     document.querySelector('nav.tabs').classList.remove('hidden');
     document.querySelector('main').classList.remove('hidden');
     $('#reload').classList.remove('hidden');
+    $('#backup').classList.remove('hidden');
     $('#write').classList.remove('hidden');
     $('#undo').classList.remove('hidden');
     $('#redo').classList.remove('hidden');
@@ -206,6 +217,21 @@ $('#reload').onclick = async () => {
   toast('Reverted to the file you opened');
 };
 
+$('#backup').onclick = async () => {
+  try {
+    const { bytes, name } = await api('/api/backup');
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const a = el('a');
+    a.href = url;
+    a.download = `original-${name}`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(`Downloaded a backup as original-${name}, unchanged`);
+  } catch (e) { toast(e.message, true); }
+};
+
 $('#write').onclick = async () => {
   try {
     const { changes } = await api('/api/changes');
@@ -249,20 +275,49 @@ $('#redo').onclick = async () => {
   } catch (e) { toast(e.message, true); }
 };
 
-// Ctrl/Cmd+Z and Ctrl/Cmd+Y (or Shift+Z) drive the undo stack, unless the user
-// is mid-edit in a text field, where that shortcut should do native text undo.
+// Ctrl/Cmd+Z, Ctrl/Cmd+Y (or Shift+Z), Ctrl/Cmd+S, "/" and 1-9 all drive the
+// header/tabs, unless the user is mid-edit in a text field, where the browser's
+// own behavior (native text undo, literal "/" or digit) should win instead.
 addEventListener('keydown', (e) => {
+  if ($('#undo').classList.contains('hidden')) return; // no file open yet
   const mod = e.ctrlKey || e.metaKey;
-  if (!mod || $('#undo').classList.contains('hidden')) return;
   const tag = document.activeElement?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-  const key = e.key.toLowerCase();
-  if (key === 'z' && !e.shiftKey) {
-    e.preventDefault();
-    if (!$('#undo').disabled) $('#undo').click();
-  } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
-    e.preventDefault();
-    if (!$('#redo').disabled) $('#redo').click();
+  const editing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+  if (mod && !editing) {
+    const key = e.key.toLowerCase();
+    if (key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      if (!$('#undo').disabled) $('#undo').click();
+      return;
+    }
+    if (key === 'y' || (key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      if (!$('#redo').disabled) $('#redo').click();
+      return;
+    }
+    if (key === 's') {
+      e.preventDefault();
+      if (!$('#write').disabled) $('#write').click();
+      return;
+    }
+  }
+
+  if (mod || editing) return;
+
+  if (e.key === '/') {
+    const sel = FILTER_SEL[current];
+    if (sel) {
+      e.preventDefault();
+      $(sel).focus();
+      $(sel).select();
+    }
+    return;
+  }
+
+  if (e.key >= '1' && e.key <= String(TAB_ORDER.length)) {
+    const name = TAB_ORDER[Number(e.key) - 1];
+    if (name) { e.preventDefault(); showTab(name); }
   }
 });
 

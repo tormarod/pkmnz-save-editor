@@ -19,6 +19,13 @@ export function speciesExists(id) {
  *   genderRate 0..253 female threshold, 254 always female, 255 genderless
  *   abilities  [first, second] ability ids; second is omitted if it doesn't have one
  *   hiddenAbility ability id, or 0 if it doesn't have one
+ *   types      [primary, secondary] type ids; secondary is 0 if single-typed
+ *   effortPoints EV yield: HP, Atk, Def, Spd, SpAtk, SpDef
+ *   eggGroups  compatibility group names, from PBS/pokemon.txt's Compatibility
+ *   eggMoves   move ids learnable only by breeding
+ *   hatchSteps steps to hatch an egg of this species
+ *   evolutions [targetSpeciesId, method, param][], e.g. [2, 'Level', '18']
+ *   formNames  alternate form names, index-aligned with the form number
  */
 export function speciesData(id) {
   const s = data().species[id];
@@ -35,6 +42,18 @@ export function speciesData(id) {
     levelMoves: s.lm,
     abilities: s.ab || [],
     hiddenAbility: s.ha || 0,
+    types: [s.t1 || 0, s.t2 || 0],
+    effortPoints: s.ep || [0, 0, 0, 0, 0, 0],
+    eggGroups: s.cp || [],
+    eggMoves: s.em || [],
+    hatchSteps: s.hs || 0,
+    height: s.ht || 0,
+    weight: s.wt || 0,
+    kind: s.kd || '',
+    dexText: s.dx || '',
+    catchRate: s.rn || 0,
+    evolutions: s.evo || [],
+    formNames: s.fn || [],
   };
 }
 

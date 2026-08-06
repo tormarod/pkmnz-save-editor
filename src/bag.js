@@ -42,6 +42,17 @@ export function addItem(save, opts) {
   return { pocket: pocketIndex, qty, stacked: false };
 }
 
+/** Remove one item entry from a pocket entirely (not just zero its quantity). */
+export function removeItem(save, pocketIndex, itemIndex) {
+  const pocket = pocketArray(save, pocketIndex);
+  if (itemIndex < 0 || itemIndex >= pocket.items.length) {
+    throw new Error(`no item ${itemIndex} in pocket ${pocketIndex}`);
+  }
+  const [id] = pocket.items[itemIndex]?.items || [];
+  pocket.items.splice(itemIndex, 1);
+  return { id, count: pocket.items.length };
+}
+
 /** Set every item already in a pocket to the max stack size. */
 export function maxPocket(save, pocketIndex) {
   const pocket = pocketArray(save, pocketIndex);

@@ -11,7 +11,7 @@ than it needs to be. Nothing here is code health.
 
 ## Tier 1 — cheap, high value
 
-1. **Show what a Pokémon actually is on its card.** `describe()`
+1. **(done)** **Show what a Pokémon actually is on its card.** `describe()`
    (`src/create.js:262`) already derives nature, shininess and level from
    `@personalID`; it is covered by `test/create.js` and **called nowhere in the
    UI**. The card header (`src/ui/tabs/party.js:20`) shows only species,
@@ -26,7 +26,7 @@ than it needs to be. Nothing here is code health.
    Nature, gender and shininess need nothing new. The **ability name** does —
    it depends on item 19, which is why the two are sequenced together.
 
-2. **Moves are bare numeric ID inputs.** `src/ui/tabs/party.js:252` builds
+2. **(done)** **Moves are bare numeric ID inputs.** `src/ui/tabs/party.js:252` builds
    `type: 'int'` inputs for `@id`, with the name in a static neighbouring cell,
    so changing a move means knowing its number. Every other id field already
    gets a searchable name combo box through `kind:`
@@ -40,17 +40,17 @@ than it needs to be. Nothing here is code health.
    - add a per-Pokémon "restore PP" and "relearn the level-up set"
      (`movesAtLevel()` in `src/gamedata.js:65` already computes it).
 
-3. **"To box" is hardcoded to box 0** (`src/ui/tabs/party.js:36` sends
+3. **(done)** **"To box" is hardcoded to box 0** (`src/ui/tabs/party.js:36` sends
    `{ direction: 'toBox', index, box: 0 }`). If box 1 is full, `addToBox`
    throws and the action fails with no way to pick another. Reuse the box
    picker the add-form already builds (`fillBoxPicker()`).
 
-4. **The bag cannot delete an item.** `loadBag()` renders id and quantity
+4. **(done)** **The bag cannot delete an item.** `loadBag()` renders id and quantity
    inputs but no remove control; setting quantity to 0 leaves a zero-count
    entry in the pocket. Add a per-row remove, mirroring
    `roster.removeFromBox`'s handling in `src/bag.js`.
 
-5. **Trainer ID and gender are Raw-tree-only.** The `simple` field list in
+5. **(done)** **Trainer ID and gender are Raw-tree-only.** The `simple` field list in
    `views.trainer()` (`src/views.js:95`) omits `@id` and `@gender`. `@id` is a
    Bignum, but `isScalar()` already accepts exact bignums
    (`src/save.js:203`), so both are a list addition, not new plumbing. Add
@@ -58,17 +58,17 @@ than it needs to be. Nothing here is code health.
    read by `roster.trainerOf()` but has no label. Trainer ID / secret ID is one
    of the most common reasons to open a save editor at all.
 
-6. **Offer to download a backup.** The entire safety story is "keep your own
+6. **(done)** **Offer to download a backup.** The entire safety story is "keep your own
    backup first" (README, dropzone text), yet the app holds the untouched bytes
    in `state.originalBytes` (`src/localApi.js:24`) and never offers them. A
    "Download the original, unchanged" button next to Revert costs almost
    nothing and directly addresses this tool's one real risk.
 
-7. **No responsive layout.** `style.css` has no `@media` query anywhere; the
+7. **(done)** **No responsive layout.** `style.css` has no `@media` query anywhere; the
    field grid, the summary bar and the add-forms are fixed multi-column, so the
    page is unusable on a phone or a narrow window.
 
-8. **Keyboard shortcuts beyond undo/redo.** `app.js:252` binds Ctrl+Z/Ctrl+Y
+8. **(done)** **Keyboard shortcuts beyond undo/redo.** `app.js:252` binds Ctrl+Z/Ctrl+Y
    only. Add Ctrl+S → Download, `/` → focus the current tab's filter, and
    1–6 → switch tab.
 
@@ -77,26 +77,26 @@ than it needs to be. Nothing here is code health.
 Three whole classes are fully labelled in `src/schema.js` and reachable only
 through the Raw tree. The labelling was the hard part and it is already done.
 
-9. **A World / Player tab** from `PokemonGlobalMetadata`
+9. **(done — World tab; the "Player" position/teleport half is item 11)** **A World / Player tab** from `PokemonGlobalMetadata`
    (`src/schema.js:204`) — roughly 40 labelled fields: Game Corner coins, repel
    steps, step count, Running Shoes, the Snag Machine, respawn point, day care
    contents and egg steps, visited maps, phone contacts. Render it with the
    same `boundInput()` grid `loadTrainer()` uses; grouping into
    Movement / Progress / Day care / Pokédex sections is enough structure.
 
-10. **An Options tab** from `PokemonSystem` (`src/schema.js:182`) — text speed,
+10. **(done)** **An Options tab** from `PokemonSystem` (`src/schema.js:182`) — text speed,
     battle scene and style, window size, volumes, difficulty, fonts. Every
     field already carries its `options` list, so this is close to pure
     rendering.
 
-11. **Teleport the player.** `Game_Player`'s `@x`/`@y`/`@direction`
+11. **(done — in the World tab's Player position card)** **Teleport the player.** `Game_Player`'s `@x`/`@y`/`@direction`
     (`src/schema.js:169`) plus the `map_id` stream, with map names already
     baked into the bundle. "Move the player to `<map>`" is a load-bearing
     feature for an Essentials fangame — unsticking a save the player walked
     into a softlock in is a real reason to reach for an editor. Needs a
     caveat in the UI that map coordinates are not validated.
 
-12. **A Pokédex editor.** The Trainer tab prints read-only counts
+12. **(done)** **A Pokédex editor.** The Trainer tab prints read-only counts
     (`src/ui/tabs/trainer.js:41`, from `src/views.js:118`). The `@seen` and
     `@owned` arrays are one boolean per species. Offer "mark all seen",
     "mark all owned", and a filterable per-species toggle list reusing the
@@ -140,7 +140,7 @@ through the Raw tree. The labelling was the hard part and it is already done.
 
 ## Tier 4 — data bundle gaps blocking good UI
 
-19. **`tools/build-data.js` reads three keys out of `PBS/pokemon.txt`; the file
+19. **(done)** **`tools/build-data.js` reads three keys out of `PBS/pokemon.txt`; the file
     has 31.** The parse at `:101` matches only `Name|InternalName|Moves`.
     Counted against the real install, the dropped keys carry most of what the
     rest of this plan needs:
@@ -184,7 +184,7 @@ through the Raw tree. The labelling was the hard part and it is already done.
     - **Max EVs / clear EVs / preset spreads** (252/252/6),
     - **Max happiness**, **max PP Ups**,
     - **Give a set** — all Poké Balls, all TMs, a full healing kit,
-    - **Egg tools** — "hatch now" (clear `@eggsteps`, set `@obtainMode` to 1),
+    - **(done)** **Egg tools** — "hatch now" (clear `@eggsteps`, set `@obtainMode` to 1),
       and "make this an egg" using the species' real `StepsToHatch` from item 19
       instead of `makePokemon()`'s current placeholder of 1. This closes the
       egg-step gap the README documents as a known limitation.

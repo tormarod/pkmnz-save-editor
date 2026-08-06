@@ -290,3 +290,17 @@ export function boundInput(row, f) {
   wrap.append(inp, el('span', 'fieldhint', `(${range[0]}–${range[1]})`));
   return wrap;
 }
+
+/** The label/input/note grid every "just render these labelled fields" tab uses. */
+export function fieldGrid(fields) {
+  const grid = el('div', 'grid');
+  for (const f of fields) {
+    const row = el('div', 'field');
+    row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
+    row.append(boundInput(row, f));
+    if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.note) row.append(el('span', 'note', f.note));
+    grid.append(row);
+  }
+  return grid;
+}

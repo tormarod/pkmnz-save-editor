@@ -212,6 +212,15 @@ export function relearnMoves(mon) {
   setIvar(mon, '@moves', RArray(moves));
 }
 
+/** Hatch an egg in place: clear the step counter, mark it as hatched, and heal to full. */
+export function hatchEgg(mon) {
+  requirePokemon(mon);
+  if (!(ivar(mon, '@eggsteps') > 0)) throw new Error('this Pokémon is not an egg');
+  setIvar(mon, '@eggsteps', 0);
+  setIvar(mon, '@obtainMode', 1); // 1 - Hatched from an egg, see CLASS_FIELDS
+  setIvar(mon, '@hp', ivar(mon, '@totalhp') ?? 0);
+}
+
 /** Sort a box's occupied slots by species id, compacted to the front. */
 export function sortBox(save, boxIndex) {
   const { mons } = boxArray(save, boxIndex);

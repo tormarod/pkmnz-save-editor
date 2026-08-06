@@ -1,7 +1,7 @@
 // The Trainer tab: scalar fields, badge checkboxes, and Pokédex counters.
 
 import { $, el } from '../dom.js';
-import { api, boundInput, setValue } from '../session.js';
+import { api, fieldGrid, setValue } from '../session.js';
 
 export async function loadTrainer() {
   const t = await api('/api/trainer');
@@ -10,16 +10,7 @@ export async function loadTrainer() {
 
   const card = el('div', 'card');
   card.append(el('h3', null, 'Trainer'));
-  const grid = el('div', 'grid');
-  for (const f of t.fields) {
-    const row = el('div', 'field');
-    row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
-    row.append(boundInput(row, f));
-    if (f.resolved) row.append(el('span', 'note', f.resolved));
-    if (f.note) row.append(el('span', 'note', f.note));
-    grid.append(row);
-  }
-  card.append(grid);
+  card.append(fieldGrid(t.fields));
   body.append(card);
 
   const bcard = el('div', 'card');

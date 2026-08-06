@@ -52,6 +52,7 @@ export const CLASS_FIELDS = {
     '@outfit': F('Outfit', { note: 'costume/appearance index; the game itself changes this at certain story switches' }),
     '@language': F('Language'),
     '@id': F('Trainer ID', { note: '32-bit; secret ID is the high 16 bits' }),
+    '@gender': F('Gender', { options: OPT([[0, '0 - Male'], [1, '1 - Female']]) }),
     '@metaID': F('Meta ID'),
     '@expall': F('Exp. All active', { note: 'boolean' }),
     '@seen': F('Pokedex seen', { note: 'one flag per species' }),

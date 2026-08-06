@@ -128,6 +128,8 @@ main { padding: 16px 20px 60px; }
 .row .nm.unnamed { color: var(--dim); font-style: italic; }
 .row input, .row select { width: 100%; font-family: var(--mono); font-size: 13px; }
 .row.changed { background: #1e3326; }
+.dexflags { display: flex; gap: 12px; white-space: nowrap; }
+.dexflags label { color: var(--text); cursor: pointer; }
 
 .tag {
   font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
@@ -159,7 +161,8 @@ main { padding: 16px 20px 60px; }
 .key { color: var(--accent); }
 .ty { color: var(--dim); font-size: 11px; }
 .pv { color: var(--text); opacity: .8; }
-.node input { font-family: var(--mono); font-size: 12px; width: 220px; }
+.node input { font-family: var(--mono); font-size: 12px; width: min(220px, 60vw); }
+.tree { overflow-x: auto; }
 .note { color: var(--dim); font-size: 11px; }
 .trunc { color: var(--warn); font-size: 12px; padding: 2px 0 2px 16px; }
 
@@ -168,6 +171,7 @@ main { padding: 16px 20px 60px; }
 .addgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 16px; margin-bottom: 10px; }
 .addgrid label { flex-direction: column; align-items: stretch; gap: 4px; display: flex; }
 .addgrid label.wide { grid-column: span 2; }
+.addgrid label.check { flex-direction: row; align-items: center; gap: 6px; }
 .addgrid input, .addgrid select { width: 100%; }
 .statrow { display: flex; gap: 4px; }
 .statrow input { width: 100%; min-width: 0; font-family: var(--mono); font-size: 12px; text-align: center; }
@@ -229,3 +233,36 @@ table.items td.iconcell { width: 26px; padding-right: 0; }
 .changelist .cdesc { color: var(--text); }
 .changelist .cdiff { color: var(--dim); font-family: var(--mono); font-size: 12px; text-align: right; white-space: nowrap; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* narrow window / phone layout */
+@media (max-width: 640px) {
+  header { padding: 10px 12px; gap: 10px; }
+  .openbar { gap: 6px; margin-left: 0; }
+  main { padding: 12px 12px 48px; }
+  .summary { gap: 14px; padding: 10px 12px; }
+  .tabs { padding: 8px 12px 0; flex-wrap: nowrap; overflow-x: auto; }
+  .tabs button { flex: none; }
+
+  .controls { flex-direction: column; align-items: stretch; gap: 8px; }
+  input[type=search] { min-width: 0; width: 100%; }
+
+  .row { display: flex; flex-wrap: wrap; row-gap: 4px; }
+  .row .idx { flex: none; }
+  .row .nmwrap { flex: 1 1 auto; min-width: 0; }
+  .row input, .row select { flex: 1 1 100%; }
+
+  .grid { grid-template-columns: 1fr; }
+  .field { grid-template-columns: 1fr; }
+  .field label { text-align: left; justify-content: flex-start; }
+  .field .note { grid-column: 1; }
+
+  .addgrid { grid-template-columns: 1fr; }
+  .addgrid label.wide { grid-column: span 1; }
+  .statrow { flex-wrap: wrap; }
+
+  table.items { display: block; overflow-x: auto; }
+
+  .modal { padding: 14px 16px; }
+  .changelist li { flex-direction: column; gap: 2px; }
+  .changelist .cdiff { text-align: left; }
+}

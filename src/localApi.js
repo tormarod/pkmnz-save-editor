@@ -176,6 +176,12 @@ const ROUTES = {
     return { bytes, size: bytes.length, name: state.save.file };
   },
 
+  /** The untouched bytes exactly as the user handed them to us, for a backup download. */
+  '/api/backup': () => {
+    need();
+    return { bytes: state.originalBytes, size: state.originalBytes.length, name: state.save.file };
+  },
+
   '/api/markSaved': () => {
     state.dirty = false;
     state.changes = [];
@@ -206,6 +212,26 @@ const ROUTES = {
   '/api/variables': (b) => ({ rows: views.variables(need(), !!b.onlySet) }),
   '/api/switches': (b) => ({ rows: views.switches(need(), !!b.onlySet) }),
   '/api/trainer': () => views.trainer(need()),
+  '/api/world': () => views.world(need()),
+  '/api/player': () => views.player(need()),
+  '/api/dex': () => ({ rows: views.dex(need()) }),
+
+  '/api/dex/markAll': (b) => {
+    const s = need();
+    const which = b.which === 'owned' ? '@owned' : b.which === 'seen' ? '@seen' : null;
+    if (!which) throw new Error(`unknown dex flag '${b.which}'`);
+    pushUndo();
+    const arr = getIvar(s.section('trainer'), which);
+    if (!arr || arr.t !== 'array') throw new Error(`this save has no ${which} array`);
+    let count = 0;
+    for (let i = 1; i < arr.items.length; i++) {
+      if (arr.items[i] !== true) { arr.items[i] = true; count++; }
+    }
+    state.dirty = true;
+    if (count) recordChange(`Marked all species as ${which === '@seen' ? 'seen' : 'owned'} (${count} newly marked)`);
+    return { count, rows: views.dex(s) };
+  },
+  '/api/settings': () => views.options(need()),
   '/api/bag': () => ({ pockets: views.bag(need()) }),
   '/api/party': () => ({ party: views.party(need()) }),
   '/api/boxes': () => ({ boxes: views.boxes(need()) }),
@@ -403,6 +429,16 @@ const ROUTES = {
     return { ok: true };
   },
 
+  '/api/pokemon/hatch': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.hatchEgg(mon);
+    state.dirty = true;
+    recordChange(`Hatched ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
   '/api/party/heal': () => {
     const s = need();
     pushUndo();
@@ -430,6 +466,18 @@ const ROUTES = {
     const qty = b.qty ?? 1;
     recordChange(r.stacked ? `Added ${qty}x ${name} to the bag (now have ${r.qty})` : `Added ${qty}x ${name} to the bag`);
     return { ...r, pockets: views.bag(s) };
+  },
+
+  '/api/item/remove': (b) => {
+    const s = need();
+    pushUndo();
+    const before = views.bag(s).find((p) => p.pocket === Number(b.pocket))
+      ?.items.find((it) => it.index === Number(b.index));
+    const name = before ? (before.name || `item ${before.id}`) : 'item';
+    bag.removeItem(s, Number(b.pocket), Number(b.index));
+    state.dirty = true;
+    recordChange(`Removed ${before ? `${before.qty}x ` : ''}${name} from the bag`);
+    return { pockets: views.bag(s) };
   },
 
   '/api/bag/maxPocket': (b) => {

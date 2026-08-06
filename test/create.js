@@ -1,7 +1,9 @@
 // Builds Pokemon in memory, injects them into a real save, and checks that the
 // result is structurally sound and survives a Marshal round trip.
 import { makePokemon, calcHP, calcStat, describe } from '../src/create.js';
-import { addToParty, addToBox, removeFromParty, removeFromBox, boxToParty, PARTY_MAX, BOX_SIZE } from '../src/roster.js';
+import {
+  addToParty, addToBox, removeFromParty, removeFromBox, boxToParty, hatchEgg, PARTY_MAX, BOX_SIZE,
+} from '../src/roster.js';
 import { speciesData, moveData } from '../src/gamedata.js';
 import { startExperience, levelFromExperience } from '../src/expTable.js';
 import { loadAll, dumpAll, strToJs } from '../src/marshal.js';
@@ -11,6 +13,7 @@ import { loadBundle, readSave, listSaves, makeChecker } from './helpers.js';
 loadBundle();
 const check = makeChecker();
 const ivar = (o, n) => o.ivars.find(([k]) => k === n)?.[1];
+const rejects = (fn) => { try { fn(); return false; } catch { return true; } };
 
 console.log('\nbuilding Pokemon\n');
 
@@ -58,6 +61,20 @@ check('an unforced Pokemon has no shinyflag ivar',
 check('nature falls out of the personal ID',
   describe(plain).nature === ivar(plain, '@personalID') % 25);
 
+// --- eggs ----------------------------------------------------------------------
+const egg = makePokemon({ species: 1, level: 1, egg: true, speciesName: 'Bulbasaur' });
+check('an egg starts at 1 HP', ivar(egg, '@hp') === 1, String(ivar(egg, '@hp')));
+check('an egg gets the species\' real hatch step count, not a placeholder',
+  ivar(egg, '@eggsteps') === speciesData(1).hatchSteps && speciesData(1).hatchSteps > 1,
+  `${ivar(egg, '@eggsteps')} vs ${speciesData(1).hatchSteps}`);
+check('a non-egg has @eggsteps 0', ivar(bulba, '@eggsteps') === 0, String(ivar(bulba, '@eggsteps')));
+
+hatchEgg(egg);
+check('hatching clears the step counter', ivar(egg, '@eggsteps') === 0, String(ivar(egg, '@eggsteps')));
+check('hatching marks the Pokemon as hatched from an egg (@obtainMode 1)', ivar(egg, '@obtainMode') === 1);
+check('hatching heals to full HP', ivar(egg, '@hp') === ivar(egg, '@totalhp'), `${ivar(egg, '@hp')} vs ${ivar(egg, '@totalhp')}`);
+check('hatching a non-egg is rejected', rejects(() => hatchEgg(bulba)));
+
 // --- describe(): gender and ability -------------------------------------------
 // Bulbasaur: GenderRate=FemaleOneEighth (threshold 31), one regular ability
 // (Overgrow), hidden ability Chlorophyll.
@@ -80,7 +97,6 @@ check('a genderless species describes as genderless regardless of the personal I
   describe(magnemite).gender === null);
 
 // --- validation --------------------------------------------------------------
-const rejects = (fn) => { try { fn(); return false; } catch { return true; } };
 check('rejects an out-of-range species', rejects(() => makePokemon({ species: 99999, level: 5 })));
 check('rejects level 0', rejects(() => makePokemon({ species: 1, level: 0 })));
 check('rejects level 101', rejects(() => makePokemon({ species: 1, level: 101 })));

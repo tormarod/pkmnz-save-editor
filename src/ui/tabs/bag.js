@@ -42,7 +42,7 @@ export async function loadBag() {
     } else {
       const table = el('table', 'items');
       const head = el('tr');
-      for (const c of ['', 'ID', 'Item', 'Quantity']) head.append(el('th', null, c));
+      for (const c of ['', 'ID', 'Item', 'Quantity', '']) head.append(el('th', null, c));
       table.append(head);
       for (const it of p.items) {
         const tr = el('tr');
@@ -56,7 +56,19 @@ export async function loadBag() {
         qc.append(boundInput(tr, {
           type: 'int', value: it.qty, path: it.qtyPath, scalar: true, label: `${it.name || 'item'} quantity`,
         }));
-        tr.append(iconc, idc, el('td', null, it.name || '(unknown)'), qc);
+        const rmc = el('td');
+        const rmBtn = el('button', 'tiny danger', 'Remove');
+        rmBtn.onclick = async () => {
+          try {
+            await api('/api/item/remove', { method: 'POST', body: JSON.stringify({ pocket: p.pocket, index: it.index }) });
+            setDirty(true);
+            refreshUndoButtons();
+            toast(`Removed ${it.name || 'item'}`);
+            await loadBag();
+          } catch (e) { toast(e.message, true); }
+        };
+        rmc.append(rmBtn);
+        tr.append(iconc, idc, el('td', null, it.name || '(unknown)'), qc, rmc);
         table.append(tr);
       }
       card.append(table);

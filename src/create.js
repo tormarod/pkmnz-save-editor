@@ -222,7 +222,7 @@ export function makePokemon(opts) {
     ['@otgender', trainer?.gender ?? 2],
     ['@happiness', happiness ?? sd.happiness],
     ['@name', jsToStr(nickname || speciesName || `SPECIES${species}`)],
-    ['@eggsteps', egg ? 1 : 0],
+    ['@eggsteps', egg ? (sd.hatchSteps || 1) : 0],
     ['@status', 0],
     ['@statusCount', 0],
     ['@item', item],
