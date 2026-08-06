@@ -13,6 +13,7 @@
     <span id="openName" class="openname">no file open</span>
     <button id="undo" class="ghost hidden" disabled title="Undo the last edit (Ctrl+Z)">↶</button>
     <button id="redo" class="ghost hidden" disabled title="Redo (Ctrl+Y)">↷</button>
+    <button id="searchOpen" class="ghost hidden" title="Search everything (Ctrl+K)">🔎 Search</button>
     <button id="pick" class="ghost">Open a save…</button>
     <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
     <button id="backup" class="ghost hidden" title="Download the file exactly as you opened it, with no edits">Download original</button>
@@ -26,6 +27,13 @@
 
 <div id="banner" class="banner hidden"></div>
 <div id="toast" class="toast hidden"></div>
+
+<div id="searchOverlay" class="modal-overlay hidden">
+  <div class="modal searchmodal">
+    <input type="search" id="searchInput" placeholder="Search variables, switches, items, species, moves, fields…" autocomplete="off">
+    <ul id="searchResults" class="searchresults"></ul>
+  </div>
+</div>
 
 <section id="dropzone" class="dropzone">
   <p class="dz-intro">
@@ -48,6 +56,11 @@
 </section>
 
 <section id="summary" class="summary hidden"></section>
+
+<details id="changesPanel" class="changespanel hidden">
+  <summary>Changes <span id="changesCount" class="fieldhint"></span></summary>
+  <ul id="changesList" class="changelist"></ul>
+</details>
 
 <nav class="tabs hidden">
   <button data-tab="variables" class="active">Variables</button>
@@ -158,6 +171,11 @@
       <br>
       <span class="note">Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</span>
     </details>
+    <div class="controls">
+      <input type="search" id="partyFilter" placeholder="Filter by species, nickname, held item or a known move…">
+      <label class="check"><input type="checkbox" id="partyShinyOnly"> Shiny only</label>
+      <label>Level <input type="number" id="partyLevelMin" min="1" max="100" placeholder="min" style="width:64px"> – <input type="number" id="partyLevelMax" min="1" max="100" placeholder="max" style="width:64px"></label>
+    </div>
     <div id="partyBody"></div>
   </div>
 

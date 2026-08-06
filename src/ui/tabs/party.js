@@ -38,6 +38,29 @@ function monCard(mon, title, loc) {
     h.append(el('span', 'spacer'));
     let boxSel = null;
     if (loc.where === 'party') {
+      const up = el('button', 'tiny', '▲');
+      up.title = 'Move up in party order';
+      up.disabled = loc.index === 0;
+      up.onclick = async () => {
+        try {
+          await api('/api/party/swap', { method: 'POST', body: JSON.stringify({ a: loc.index, b: loc.index - 1 }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      const down = el('button', 'tiny', '▼');
+      down.title = 'Move down in party order';
+      down.disabled = loc.index === loc.total - 1;
+      down.onclick = async () => {
+        try {
+          await api('/api/party/swap', { method: 'POST', body: JSON.stringify({ a: loc.index, b: loc.index + 1 }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      h.append(up, down);
       boxSel = el('select', 'tiny');
       for (const b of allBoxes) {
         boxSel.append(new Option(`Box ${b.index + 1}${b.name ? ` "${b.name}"` : ''}`, b.index));
@@ -376,16 +399,130 @@ function fillBoxPicker() {
   }
 }
 
-export async function loadParty() {
+// --- filtering: species, nickname, held item (text) plus shiny/level -----------
+
+function filterActive() {
+  return $('#partyFilter').value.trim() !== '' || $('#partyShinyOnly').checked
+    || $('#partyLevelMin').value !== '' || $('#partyLevelMax').value !== '';
+}
+
+function monMatchesFilter(mon) {
+  const q = $('#partyFilter').value.trim().toLowerCase();
+  const shinyOnly = $('#partyShinyOnly').checked;
+  const minLvl = $('#partyLevelMin').value === '' ? null : Number($('#partyLevelMin').value);
+  const maxLvl = $('#partyLevelMax').value === '' ? null : Number($('#partyLevelMax').value);
+  if (shinyOnly && !mon.describe?.shiny) return false;
+  if (minLvl !== null && (mon.level === null || mon.level < minLvl)) return false;
+  if (maxLvl !== null && (mon.level === null || mon.level > maxLvl)) return false;
+  if (q) {
+    const moveNames = mon.moves.map((m) => m.name).filter(Boolean);
+    const hay = [mon.nickname, mon.speciesName, mon.itemName, ...moveNames].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// --- box grid: a compact 6-wide sprite grid, click a slot to expand it ---------
+// into the full card below it. Every box is rendered, including empty ones, so
+// they can still be renamed/targeted; there are far too many boxes*30 slots to
+// keep every Pokemon fully expanded at once the way the party list does.
+
+let partyData = [];
+let boxesData = [];
+const selectedSlot = {}; // box index -> selected slot number, or null
+
+function boxCell(mon, box) {
+  const cell = el('button', 'boxcell');
+  cell.type = 'button';
+  if (!mon) { cell.disabled = true; return cell; }
+  attachSprite(cell, speciesSpriteUrl(mon.species), mon.speciesName, 'sprite');
+  cell.append(el('span', 'boxcelllvl', mon.level ?? ''));
+  cell.title = `${mon.nickname || mon.speciesName || 'Pokémon'} · Lv.${mon.level ?? '?'}`;
+  if (mon.describe?.shiny) cell.classList.add('shiny');
+  if (filterActive() && !monMatchesFilter(mon)) cell.classList.add('dim');
+  if (selectedSlot[box.index] === mon.slot) cell.classList.add('selected');
+  cell.onclick = () => {
+    selectedSlot[box.index] = selectedSlot[box.index] === mon.slot ? null : mon.slot;
+    draw();
+  };
+  return cell;
+}
+
+function boxCard(box) {
+  const card = el('div', 'card');
+  const bh = el('div', 'flexhead boxhead');
+  bh.append(el('span', 'boxlabel', `Box ${box.index + 1}`));
+
+  const nameInp = el('input');
+  nameInp.type = 'text';
+  nameInp.className = 'tiny boxname';
+  nameInp.placeholder = '(unnamed)';
+  nameInp.value = box.name || '';
+  nameInp.title = 'Box name';
+  nameInp.onchange = async () => {
+    try {
+      await api('/api/box/setField', { method: 'POST', body: JSON.stringify({ box: box.index, field: '@name', value: nameInp.value }) });
+      setDirty(true);
+      refreshUndoButtons();
+      await loadParty();
+    } catch (e) { toast(e.message, true); }
+  };
+  bh.append(nameInp);
+
+  const bgInp = el('input');
+  bgInp.type = 'number';
+  bgInp.className = 'tiny boxbg';
+  bgInp.min = 0;
+  bgInp.title = 'Box wallpaper id';
+  bgInp.value = box.background ?? 0;
+  bgInp.onchange = async () => {
+    try {
+      await api('/api/box/setField', { method: 'POST', body: JSON.stringify({ box: box.index, field: '@background', value: bgInp.value }) });
+      setDirty(true);
+      refreshUndoButtons();
+      await loadParty();
+    } catch (e) { toast(e.message, true); }
+  };
+  bh.append(el('span', 'fieldhint', 'wallpaper'), bgInp);
+  bh.append(el('span', 'fieldhint', `${box.count} of ${box.size}`));
+  bh.append(el('span', 'spacer'));
+  if (box.count > 1) {
+    const sort = el('button', 'tiny', 'Sort box');
+    sort.title = 'Sort this box\'s Pokémon by species, compacted to the front';
+    sort.onclick = async () => {
+      try {
+        await api('/api/box/sort', { method: 'POST', body: JSON.stringify({ box: box.index }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Sorted box ${box.index + 1}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    bh.append(sort);
+  }
+  card.append(bh);
+
+  const grid = el('div', 'boxgrid');
+  const bySlot = new Map(box.pokemon.map((m) => [m.slot, m]));
+  for (let i = 0; i < box.size; i++) grid.append(boxCell(bySlot.get(i) || null, box));
+  card.append(grid);
+
+  const selSlot = selectedSlot[box.index];
+  const selMon = selSlot === undefined ? null : bySlot.get(selSlot);
+  if (selMon) {
+    card.append(monCard(selMon, `Box ${box.index + 1} slot ${selMon.slot + 1}`, { where: 'box', box: box.index, slot: selMon.slot }));
+  }
+  return card;
+}
+
+function draw() {
   const body = $('#partyBody');
   body.innerHTML = '';
-  await ensureKindOptions('moves');
-  const { party } = await api('/api/party');
-  const { boxes } = await api('/api/boxes');
-  allBoxes = boxes;
+  const active = filterActive();
+
   const pc = el('div', 'card');
-  const ph = el('h3', 'flexhead', `Party (${party.length})`);
-  if (party.length) {
+  const ph = el('h3', 'flexhead', `Party (${partyData.length})`);
+  if (partyData.length) {
     ph.append(el('span', 'spacer'));
     const heal = el('button', 'tiny', 'Heal party');
     heal.title = 'Restore every party Pokémon to full HP, cure status, and refill move PP';
@@ -402,36 +539,38 @@ export async function loadParty() {
   }
   pc.append(ph);
   body.append(pc);
-  if (!party.length) pc.append(el('div', 'empty', 'The party is empty.'));
-  party.forEach((m, i) => m && body.append(monCard(m, `Party ${i + 1}`, { where: 'party', index: i })));
+  if (!partyData.length) pc.append(el('div', 'empty', 'The party is empty.'));
+  const shown = partyData.filter((m) => m && (!active || monMatchesFilter(m)));
+  if (active && partyData.length && !shown.length) pc.append(el('div', 'empty', 'No party Pokémon match the filter.'));
+  partyData.forEach((m, i) => {
+    if (!m || (active && !monMatchesFilter(m))) return;
+    body.append(monCard(m, `Party ${i + 1}`, { where: 'party', index: i, total: partyData.length }));
+  });
 
-  const filled = boxes.filter((b) => b.count > 0);
   const bc = el('div', 'card');
-  bc.append(el('h3', null, `Boxes (${filled.length} of ${boxes.length} in use)`));
+  bc.append(el('h3', null, `Boxes (${boxesData.filter((b) => b.count > 0).length} of ${boxesData.length} in use)`));
   body.append(bc);
-  if (!filled.length) bc.append(el('div', 'empty', 'All boxes are empty.'));
-  for (const b of filled) {
-    const bh = el('div', 'flexhead boxhead');
-    bh.append(el('span', null, `Box ${b.index + 1}${b.name ? ` "${b.name}"` : ''}: ${b.count} of ${b.size}`));
-    if (b.count > 1) {
-      const sort = el('button', 'tiny', 'Sort box');
-      sort.title = 'Sort this box\'s Pokémon by species, compacted to the front';
-      sort.onclick = async () => {
-        try {
-          await api('/api/box/sort', { method: 'POST', body: JSON.stringify({ box: b.index }) });
-          setDirty(true);
-          refreshUndoButtons();
-          await loadParty();
-          toast(`Sorted box ${b.index + 1}`);
-        } catch (e) { toast(e.message, true); }
-      };
-      bh.append(sort);
-    }
-    body.append(bh);
-    b.pokemon.forEach((m) => body.append(
-      monCard(m, `Box ${b.index + 1} slot ${m.slot + 1}`, { where: 'box', box: b.index, slot: m.slot }),
-    ));
+  for (const b of boxesData) body.append(boxCard(b));
+}
+
+let filterWired = false;
+function wirePartyFilter() {
+  if (filterWired) return;
+  filterWired = true;
+  for (const id of ['#partyFilter', '#partyShinyOnly', '#partyLevelMin', '#partyLevelMax']) {
+    $(id).addEventListener('input', draw);
   }
+}
+
+export async function loadParty() {
+  wirePartyFilter();
+  await ensureKindOptions('moves');
+  const { party } = await api('/api/party');
+  const { boxes } = await api('/api/boxes');
+  partyData = party;
+  boxesData = boxes;
+  allBoxes = boxes;
+  draw();
   fillBoxPicker();
 }
 

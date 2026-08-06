@@ -376,6 +376,7 @@ export function boxes(save) {
     return {
       index: bi,
       name: text(ivar(box, '@name')),
+      background: num(ivar(box, '@background')),
       size: mons?.items.length ?? 0,
       count: list.length,
       pokemon: list,

@@ -73,13 +73,25 @@ export function setDirty(v) {
   if (v) scheduleDraftPersist();
 }
 
-/** Enable/disable the Undo/Redo buttons to match the current history. */
+// Runs after every mutation with the fresh change list, so the persistent
+// change panel (app.js) stays in sync without every call site needing to know
+// about it - registered once, same pattern as onRecalculated() below.
+let changesHook = null;
+export function onChangesChanged(fn) { changesHook = fn; }
+
+/** Enable/disable the Undo/Redo buttons to match the current history, and refresh the change panel. */
 export async function refreshUndoButtons() {
   try {
     const { canUndo, canRedo } = await api('/api/undoState');
     $('#undo').disabled = !canUndo;
     $('#redo').disabled = !canRedo;
-  } catch { /* no file open yet */ }
+  } catch { return; /* no file open yet */ }
+  if (changesHook) {
+    try {
+      const { changes } = await api('/api/changes');
+      changesHook(changes);
+    } catch { /* best-effort */ }
+  }
 }
 
 // Runs after an edit changes a Pokemon in a way its card header summarizes

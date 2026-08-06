@@ -104,7 +104,7 @@ through the Raw tree. The labelling was the hard part and it is already done.
 
 ## Tier 3 — larger features
 
-13. **A box grid view.** A full box renders as 30 stacked full-height cards
+13. **(done)** **A box grid view.** A full box renders as 30 stacked full-height cards
     (`src/ui/tabs/party.js:327`). Replace with the in-game 6×5 sprite grid,
     click to expand one into the existing card. Related gaps in the same tab:
 
@@ -113,25 +113,25 @@ through the Raw tree. The labelling was the hard part and it is already done.
     - `PokemonBox`'s `@name` and `@background` (`src/schema.js:156`) have no UI
       at all.
 
-14. **Global search.** One box that searches variables, switches, items,
+14. **(done)** **Global search.** One box that searches variables, switches, items,
     species, moves and labelled fields at once and jumps to the hit's tab and
     row. With 1000 variables, 1000 switches and six tabs, this is the largest
     navigation win available.
 
-15. **Reorder the party.** There is no way to change slot order, and the lead
+15. **(done)** **Reorder the party.** There is no way to change slot order, and the lead
     Pokémon matters in game. Drag, or plain up/down buttons on the card header,
     over a `roster.swapParty()` that splices the compact array.
 
-16. **Filter within Party & Boxes** — by species, nickname, level, shiny or
+16. **(done)** **Filter within Party & Boxes** — by species, nickname, level, shiny or
     held item. There is no way to find one Pokémon among several hundred.
 
-17. **A persistent change panel with per-change revert.** `state.changes` is
+17. **(done)** **A persistent change panel with per-change revert.** `state.changes` is
     maintained continuously (`src/localApi.js:104`) but only ever surfaces in
     the pre-download modal (`app.js:96`). Making it an always-available panel,
     with a revert button per entry, turns undo from strictly linear into "back
     out that one thing" without losing the edits made after it.
 
-18. **A "check this save" validator** run before download, folded into the
+18. **(done)** **A "check this save" validator** run before download, folded into the
     existing modal: EV total over 510, a single EV over 252, current HP above
     `@totalhp`, a level whose exp exceeds the growth-rate table, an egg that
     has a moveset or a nickname, an empty party, item quantities over the stack

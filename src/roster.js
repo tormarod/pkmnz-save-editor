@@ -94,6 +94,18 @@ export function addAnywhere(save, opts) {
   throw new Error('the party and every box are full');
 }
 
+/** Swap two party slots in place - the lead Pokemon matters in game, and this is the only way to change it. */
+export function swapParty(save, a, b) {
+  const party = partyArray(save);
+  const ia = Math.floor(Number(a));
+  const ib = Math.floor(Number(b));
+  if (ia < 0 || ia >= party.items.length || ib < 0 || ib >= party.items.length) {
+    throw new Error(`no party slot ${ia < 0 || ia >= party.items.length ? ia : ib}`);
+  }
+  [party.items[ia], party.items[ib]] = [party.items[ib], party.items[ia]];
+  return { count: party.items.length };
+}
+
 export function removeFromParty(save, index) {
   const party = partyArray(save);
   if (index < 0 || index >= party.items.length) throw new Error(`no party slot ${index}`);

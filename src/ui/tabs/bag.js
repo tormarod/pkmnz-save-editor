@@ -46,6 +46,7 @@ export async function loadBag() {
       table.append(head);
       for (const it of p.items) {
         const tr = el('tr');
+        tr.dataset.itemId = String(it.id);
         const iconc = el('td', 'iconcell');
         attachSprite(iconc, itemSpriteUrl(it.internal), it.name, 'sprite item-sprite');
         const idc = el('td');

@@ -5,7 +5,7 @@
 import { Save } from './save.js';
 import { children, preview } from './save.js';
 import {
-  RArray, strToJs, getIvar, setIvar,
+  RArray, strToJs, jsToStr, getIvar, setIvar,
 } from './marshal.js';
 import * as views from './views.js';
 import * as roster from './roster.js';
@@ -15,6 +15,7 @@ import { SECTIONS } from './schema.js';
 import {
   recalcStats, STAT_INPUTS, setContestStat, addRibbon, removeRibbon,
 } from './create.js';
+import { validate } from './validate.js';
 
 const UNDO_LIMIT = 20;
 
@@ -101,7 +102,12 @@ function genericLabel(path) {
   }).join(' / ');
 }
 
-/** Record a single field edit, collapsing repeat edits of the same path into one entry. */
+/**
+ * Record a single field edit, collapsing repeat edits of the same path into one
+ * entry. Keeps the original raw `before` value (never overwritten by a repeat
+ * edit) so the persistent change panel can revert this one field precisely,
+ * regardless of what else has changed since - see '/api/changes/revert'.
+ */
 function recordFieldChange(label, path, before, after) {
   const key = JSON.stringify(path);
   const beforeStr = preview(before);
@@ -114,13 +120,23 @@ function recordFieldChange(label, path, before, after) {
   }
   if (beforeStr === afterStr) return;
   state.changes.push({
-    key, desc: label || genericLabel(path), before: beforeStr, after: afterStr,
+    key, kind: 'field', path, desc: label || genericLabel(path), before: beforeStr, after: afterStr, beforeRaw: before,
   });
 }
 
-/** Record a structural change (add/remove/move/bulk action) with no before/after pair. */
+/**
+ * Record a structural change (add/remove/move/bulk action) with no before/after
+ * pair. Carries the whole-tree snapshot pushUndo() just took (i.e. the state
+ * immediately before this action), so the panel can revert it by rewinding to
+ * that point - which also discards any later changes, unlike a field revert.
+ */
 function recordChange(desc) {
-  state.changes.push({ key: `#${state.changes.length}:${Math.random()}`, desc });
+  state.changes.push({
+    key: `#${state.changes.length}:${Math.random()}`,
+    kind: 'structural',
+    desc,
+    snapshot: state.undoStack[state.undoStack.length - 1] || null,
+  });
 }
 
 function monLabel(mon) {
@@ -189,6 +205,42 @@ const ROUTES = {
   },
 
   '/api/changes': () => ({ changes: state.changes }),
+
+  /**
+   * Revert a single entry from the persistent change panel. A field edit reverts
+   * exactly and independently of order (its own path, its own original value -
+   * see recordFieldChange). A structural entry (add/remove/move/bulk action) has
+   * no generic inverse, so it rewinds the whole tree to the snapshot taken right
+   * before it happened; if later changes exist, the caller must pass `confirmed`
+   * since those are lost too (`needsConfirm`/`laterCount` let the UI ask first).
+   */
+  '/api/changes/revert': (b) => {
+    const s = need();
+    const entry = state.changes.find((c) => c.key === b.key);
+    if (!entry) throw new Error('that change is no longer in the list');
+    if (entry.kind === 'field') {
+      pushUndo();
+      try {
+        s.locate(entry.path).set(entry.beforeRaw);
+      } catch (e) {
+        throw new Error(`could not revert - the surrounding data has changed since: ${e.message}`);
+      }
+      state.changes = state.changes.filter((c) => c !== entry);
+      state.dirty = s.isDirty();
+      return { ok: true, dirty: state.dirty, changes: state.changes };
+    }
+    if (!entry.snapshot) throw new Error('this change is too old to revert directly - use Undo instead');
+    const idx = state.changes.indexOf(entry);
+    const laterCount = state.changes.length - idx - 1;
+    if (laterCount > 0 && !b.confirmed) return { needsConfirm: true, laterCount };
+    pushUndo();
+    state.save.streams = structuredClone(entry.snapshot.streams);
+    state.changes = structuredClone(entry.snapshot.changes);
+    state.dirty = s.isDirty();
+    return { ok: true, dirty: state.dirty, changes: state.changes };
+  },
+
+  '/api/validate': () => ({ warnings: validate(need()) }),
 
   '/api/undoState': () => ({ canUndo: state.undoStack.length > 0, canRedo: state.redoStack.length > 0 }),
 
@@ -389,6 +441,20 @@ const ROUTES = {
     return { ...r, summary: views.summary(s) };
   },
 
+  '/api/party/swap': (b) => {
+    const s = need();
+    pushUndo();
+    const party = views.party(s);
+    const a = Number(b.a);
+    const bb = Number(b.b);
+    const labelA = party[a]?.nickname || party[a]?.speciesName || `slot ${a + 1}`;
+    const labelB = party[bb]?.nickname || party[bb]?.speciesName || `slot ${bb + 1}`;
+    roster.swapParty(s, a, bb);
+    state.dirty = true;
+    recordChange(`Swapped party order of ${labelA} and ${labelB}`);
+    return { party: views.party(s) };
+  },
+
   '/api/pokemon/moves/learn': (b) => {
     const s = need();
     pushUndo();
@@ -446,6 +512,22 @@ const ROUTES = {
     state.dirty = true;
     recordChange(`Healed the party (${r.healed} Pokémon: HP, status and PP restored)`);
     return { ...r, party: views.party(s) };
+  },
+
+  '/api/box/setField': (b) => {
+    const s = need();
+    pushUndo();
+    if (!['@name', '@background'].includes(b.field)) throw new Error(`unknown box field '${b.field}'`);
+    const boxes = getIvar(s.section('storage'), '@boxes');
+    const box = boxes?.items?.[Number(b.box)];
+    if (!box || box.t !== 'obj') throw new Error(`box ${Number(b.box) + 1} does not exist`);
+    const value = b.field === '@name' ? jsToStr(String(b.value ?? '')) : (Math.floor(Number(b.value)) || 0);
+    setIvar(box, b.field, value);
+    state.dirty = true;
+    recordChange(b.field === '@name'
+      ? `Renamed box ${Number(b.box) + 1} to "${b.value}"`
+      : `Set box ${Number(b.box) + 1}'s wallpaper to ${value}`);
+    return { ok: true, boxes: views.boxes(s) };
   },
 
   '/api/box/sort': (b) => {
