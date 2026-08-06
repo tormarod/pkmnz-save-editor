@@ -149,6 +149,32 @@ node tools/repair.js            # report only
 node tools/repair.js --write    # fix, keeping a .bak
 ```
 
+## Deploying
+
+`main` is the source; **`gh-pages` is the published site**. Pushing to `main`
+runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which tests,
+builds and force-pushes the site to `gh-pages`. Doc-only changes are skipped via
+`paths-ignore`.
+
+```bash
+node tools/build-site.js    # assemble _site/
+node tools/serve.js         # try it locally
+```
+
+`_site` holds only what the page loads — `index.html`, `app.js`, `style.css`,
+`src/`, `data/`, plus a `.nojekyll` — so tests, tools and history stay off the
+deployed branch.
+
+The deploy is gated on `test/smoke.js`: it boots the built site in headless
+Chromium and checks the page comes up, the data bundle loads, and a real save
+opens. There is no bundler here, so a bad import path or a missing file would
+otherwise ship as a white screen with no build error. It serves from a
+subdirectory so the URL matches how Pages serves the repo — every path in the
+page is relative, and this is what would catch it if one were not.
+
+Publishing uses plain `git` with the workflow's built-in `GITHUB_TOKEN`, so
+there is no third-party action in the deploy path and no secret to configure.
+
 ## Tests
 
 ```bash
@@ -166,9 +192,13 @@ npm test
 - `test/create.js` checks generated stats against hand-computed values and
   confirms injected Pokémon can be removed byte-cleanly.
 - `test/bignum.js` guards the Fixnum/Bignum boundary.
+- `test/smoke.js` boots the built site in a browser (see above). Needs
+  `npm install --no-save playwright && npx playwright install chromium`; it skips
+  itself if Playwright is absent.
 
 Tests that need a game install look at `PKMNZ_GAME_DIR` and `PKMNZ_SAVE_DIR`, and
-skip cleanly when it is absent.
+skip cleanly when it is absent — which is why `npm test` passes in CI, where
+neither exists.
 
 ## Licence
 
