@@ -5,20 +5,15 @@
 //   boxes  -> PokemonBox#@pokemon, exactly 30 fixed slots pre-filled with nil
 // So a party removal splices, while a box removal writes nil back into the slot.
 
-import { RArray, jsToStr, strToJs } from './marshal.js';
+import {
+  RArray, jsToStr, strToJs, getIvar as ivar, setIvar,
+} from './marshal.js';
 import { makePokemon } from './create.js';
 import { nameOf } from './labels.js';
 import { movePP } from './gamedata.js';
 
 export const PARTY_MAX = 6;
 export const BOX_SIZE = 30;
-
-const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
-const setIvar = (o, n, v) => {
-  const pair = o.ivars.find(([k]) => k === n);
-  if (pair) pair[1] = v;
-  else o.ivars.push([n, v]);
-};
 
 /** A move's max PP with PP Ups applied: mirrors PokeBattle_Move#totalpp (base * (5+ppup)/5). */
 function maxPP(moveId, ppup) {

@@ -5,7 +5,9 @@
 // Mirrored from 122_PokeBattle_Pokemon.rb: initialize, calcStats, calcHP,
 // calcStat, level=, nature, gender, isShiny?, and PBMove#initialize.
 
-import { RObject, RArray, jsToStr, strToJs, bignumToJs } from './marshal.js';
+import {
+  RObject, RArray, jsToStr, strToJs, bignumToJs, getIvar, setIvar,
+} from './marshal.js';
 import { speciesData, speciesExists, movesAtLevel, movePP } from './gamedata.js';
 import { startExperience, levelFromExperience, MAXLEVEL } from './expTable.js';
 
@@ -48,12 +50,6 @@ export const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk'
 /** Editing any of these changes the stats, so they have to be recomputed. */
 export const STAT_INPUTS = ['@iv', '@ev', '@exp', '@species', '@natureflag', '@personalID'];
 
-const getIvar = (mon, name) => mon.ivars.find(([k]) => k === name)?.[1];
-const setIvar = (mon, name, value) => {
-  const pair = mon.ivars.find(([k]) => k === name);
-  if (pair) pair[1] = value;
-  else mon.ivars.push([name, value]);
-};
 const plain = (v) => (typeof v === 'number' ? v : v && v.t === 'bignum' ? bignumToJs(v) : 0);
 
 /**
@@ -98,6 +94,51 @@ export function recalcStats(mon) {
   setIvar(mon, '@hp', hp);
 
   return { level, nature, stats, hp };
+}
+
+/** The six contest-stat ivars, in the order the game's contest UI shows them. */
+export const CONTEST_IVARS = ['@cool', '@beauty', '@cute', '@smart', '@tough', '@sheen'];
+export const CONTEST_NAMES = ['Cool', 'Beauty', 'Cute', 'Smart', 'Tough', 'Sheen'];
+
+/**
+ * Set one contest stat (0-255), creating the ivar if this Pokemon never had
+ * one set - makePokemon() doesn't set any, and plenty of wild-caught Pokemon
+ * won't have entered a contest either.
+ */
+export function setContestStat(mon, ivarName, value) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  if (!CONTEST_IVARS.includes(ivarName)) throw new Error(`not a contest stat: ${ivarName}`);
+  const n = Math.floor(Number(value));
+  if (!Number.isInteger(n) || n < 0 || n > 255) throw new Error('contest stats must be a whole number from 0 to 255');
+  setIvar(mon, ivarName, n);
+  return n;
+}
+
+/** Add a ribbon id to @ribbons, creating the ivar if this Pokemon has none. */
+export function addRibbon(mon, ribbonId) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  const id = Math.floor(Number(ribbonId));
+  if (!Number.isInteger(id) || id < 0) throw new Error('ribbon id must be a non-negative whole number');
+  const items = (getIvar(mon, '@ribbons')?.items || []).map(plain);
+  if (items.includes(id)) throw new Error('this Pokémon already has that ribbon');
+  items.push(id);
+  setIvar(mon, '@ribbons', RArray(items));
+  return items;
+}
+
+/** Remove a ribbon id from @ribbons. */
+export function removeRibbon(mon, ribbonId) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  const id = Math.floor(Number(ribbonId));
+  const items = (getIvar(mon, '@ribbons')?.items || []).map(plain).filter((v) => v !== id);
+  setIvar(mon, '@ribbons', RArray(items));
+  return items;
 }
 
 /** PBMove.new(moveid) */
@@ -219,7 +260,7 @@ function clamp(v, lo, hi) {
 
 /** Derived facts about a Pokemon object, for display. */
 export function describe(mon) {
-  const g = (n) => mon.ivars.find(([k]) => k === n)?.[1];
+  const g = (n) => getIvar(mon, n);
   const species = g('@species');
   const pid = g('@personalID') ?? 0;
   const tid = g('@trainerID') ?? 0;

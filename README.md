@@ -119,7 +119,10 @@ box is exactly 30 fixed slots, so removing from a box writes `nil` back into the
 slot instead of shifting the others.
 
 It does **not** create eggs with proper step counts, set ribbons or contest
-stats, or check that a moveset is legal for the species.
+stats, or check that a moveset is legal for the species. Ribbons and contest
+stats can be edited afterward from the Party/Boxes card (they're just an
+array of ids and six 0–255 counters); egg step counts still need the Raw
+tree.
 
 ## Game data
 

@@ -86,7 +86,7 @@ export const CLASS_FIELDS = {
       ]),
     }),
     '@statusCount': F('Status counter', { note: 'sleep: turns left; poison/burn/paralysis/frozen: usually 0' }),
-    '@eggsteps': F('Egg steps', { note: '0 means it is not an egg' }),
+    '@eggsteps': F('Egg steps', { note: "0 means it is not an egg. Pokémon created in this editor as an egg get a placeholder value of 1, not the species' real hatch-cycle count." }),
     '@ballused': F('Ball used', { kind: 'items', note: 'item id of the Poké Ball it was caught in' }),
     '@markings': F('Markings', {
       mask: [{ bit: 0, label: '●' }, { bit: 1, label: '■' }, { bit: 2, label: '▲' }, { bit: 3, label: '♥' }],
@@ -120,7 +120,7 @@ export const CLASS_FIELDS = {
     '@shinyflag': F('Forced shiny', {
       options: [NATURAL, { value: true, label: 'Force shiny' }, { value: false, label: 'Force not shiny' }],
     }),
-    '@ribbons': F('Ribbons'),
+    '@ribbons': F('Ribbons', { note: 'array of ribbon ids' }),
     '@expshare': F('Exp. Share'),
     '@fused': F('Fused Pokemon'),
     '@mail': F('Mail'),
