@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pokemon Z save editor</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+  <h1>Pokémon Z <span>save editor</span></h1>
+  <div class="openbar">
+    <span id="openName" class="openname">no file open</span>
+    <button id="pick" class="ghost">Open a save…</button>
+    <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
+    <button id="write" class="primary hidden" disabled>Download</button>
+    <span id="dirty" class="dirty hidden">unsaved edits</span>
+  </div>
+</header>
+
+<input type="file" id="fileInput" accept=".rxdata" class="hidden">
+
+<div id="banner" class="banner hidden"></div>
+<div id="toast" class="toast hidden"></div>
+
+<section id="dropzone" class="dropzone">
+  <h2>Drop a save file here</h2>
+  <p>or <button id="pick2" class="linkish">choose one</button></p>
+  <p class="dz-note">
+    Saves normally live in <code>%USERPROFILE%\Saved Games\Pokemon Z</code> —
+    <code>Game.rxdata</code>, <code>Game_2.rxdata</code>, and so on.
+  </p>
+  <p class="dz-note">
+    Everything runs in your browser. The file is never uploaded, and this page
+    only ever sees what you hand it.
+  </p>
+  <p id="dataStatus" class="dz-note"></p>
+</section>
+
+<section id="summary" class="summary hidden"></section>
+
+<nav class="tabs hidden">
+  <button data-tab="variables" class="active">Variables</button>
+  <button data-tab="switches">Switches</button>
+  <button data-tab="trainer">Trainer</button>
+  <button data-tab="bag">Bag</button>
+  <button data-tab="party">Party &amp; Boxes</button>
+  <button data-tab="raw">Raw tree</button>
+</nav>
+
+<main class="hidden">
+  <div class="panel" data-panel="variables">
+    <div class="controls">
+      <input type="search" id="varFilter" placeholder="Filter by number or name…">
+      <label class="check"><input type="checkbox" id="varOnlySet"> Only named or non-default</label>
+    </div>
+    <div id="varList" class="rows"></div>
+  </div>
+
+  <div class="panel hidden" data-panel="switches">
+    <div class="controls">
+      <input type="search" id="swFilter" placeholder="Filter by number or name…">
+      <label class="check"><input type="checkbox" id="swOnlySet"> Only named or non-default</label>
+    </div>
+    <div id="swList" class="rows"></div>
+  </div>
+
+  <div class="panel hidden" data-panel="trainer"><div id="trainerBody"></div></div>
+  <div class="panel hidden" data-panel="bag"><div id="bagBody"></div></div>
+  <div class="panel hidden" data-panel="party">
+    <details id="addBox" class="card addcard">
+      <summary>Add a Pokémon</summary>
+      <div class="addgrid">
+        <label class="wide">Species
+          <input type="search" id="addSpeciesText" list="speciesList" placeholder="Type a name or number…" autocomplete="off">
+          <datalist id="speciesList"></datalist>
+        </label>
+        <label>Level <input type="number" id="addLevel" value="5" min="1" max="100"></label>
+        <label>Nickname <input type="text" id="addNick" placeholder="(species name)"></label>
+        <label class="wide">Held item
+          <input type="search" id="addItemText" list="itemList" placeholder="(none)" autocomplete="off">
+          <datalist id="itemList"></datalist>
+        </label>
+        <label>Goes to
+          <select id="addTarget">
+            <option value="auto">Party, else first free box</option>
+            <option value="party">Party</option>
+            <option value="box">A specific box</option>
+          </select>
+        </label>
+        <label id="addBoxWrap" class="hidden">Box <select id="addBoxNum"></select></label>
+        <label>Shiny
+          <select id="addShiny"><option value="">Leave to chance</option><option value="1">Yes</option><option value="0">No</option></select>
+        </label>
+        <label>Gender
+          <select id="addGender"><option value="">From species</option><option value="0">Male</option><option value="1">Female</option></select>
+        </label>
+        <label>Nature <select id="addNature"></select></label>
+        <label>Ability
+          <select id="addAbility"><option value="">Default</option><option value="0">First</option><option value="1">Second</option><option value="2">Hidden</option></select>
+        </label>
+        <label class="wide">IVs
+          <span class="statrow" id="addIVs"></span>
+          <button type="button" id="ivMax" class="tiny">Max</button>
+          <button type="button" id="ivRandom" class="tiny">Random</button>
+        </label>
+        <label class="wide">EVs <span class="statrow" id="addEVs"></span></label>
+      </div>
+      <p class="hint" id="addPreview"></p>
+      <button id="addGo" class="primary">Add to save</button>
+      <span class="note">Moves default to the level-up set the game would give it. Stats are computed with the game's own formulas.</span>
+    </details>
+    <div id="partyBody"></div>
+  </div>
+
+  <div class="panel hidden" data-panel="raw">
+    <p class="hint">Every one of the 15 Marshal streams, exactly as stored. Known fields are labeled; anything else shows its Ruby type.</p>
+    <div id="tree" class="tree"></div>
+  </div>
+</main>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

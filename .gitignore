@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+Thumbs.db
+
+# never commit save files or backups
+*.rxdata
+*.bak
+_tmp*
+
+.claude/
+.vscode/
+.idea/

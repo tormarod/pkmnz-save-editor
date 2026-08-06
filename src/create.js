@@ -1,0 +1,179 @@
+// Builds a PokeBattle_Pokemon Marshal object the same way the game's
+// PokeBattle_Pokemon#initialize does, so an injected Pokemon is indistinguishable
+// from a caught one.
+//
+// Mirrored from 122_PokeBattle_Pokemon.rb: initialize, calcStats, calcHP,
+// calcStat, level=, nature, gender, isShiny?, and PBMove#initialize.
+
+import { RObject, RArray, jsToStr, strToJs } from './marshal.js';
+import { speciesData, speciesExists, movesAtLevel, movePP } from './gamedata.js';
+import { startExperience, levelFromExperience, MAXLEVEL } from './expTable.js';
+
+const HP = 0; // PBStats::HP
+
+const rand = (n) => Math.floor(Math.random() * n);
+
+/** PokeBattle_Pokemon#calcHP */
+export function calcHP(base, level, iv, ev) {
+  if (base === 1) return 1;
+  return Math.floor(((base * 2 + iv + (ev >> 2)) * level) / 100) + level + 10;
+}
+
+/** PokeBattle_Pokemon#calcStat */
+export function calcStat(base, level, iv, ev, pv) {
+  return Math.floor((Math.floor(((base * 2 + iv + (ev >> 2)) * level) / 100) + 5) * pv / 100);
+}
+
+/**
+ * The six stats for a Pokemon, applying the nature multipliers exactly as
+ * calcStats does (nature/5 gets +10%, nature%5 gets -10%).
+ */
+export function calcStats({ baseStats, level, iv, ev, nature }) {
+  const pvalues = [100, 100, 100, 100, 100];
+  const nd5 = Math.floor(nature / 5);
+  const nm5 = nature % 5;
+  if (nd5 !== nm5) { pvalues[nd5] = 110; pvalues[nm5] = 90; }
+  const stats = [];
+  for (let i = 0; i <= 5; i++) {
+    stats[i] = i === HP
+      ? calcHP(baseStats[i], level, iv[i], ev[i])
+      : calcStat(baseStats[i], level, iv[i], ev[i], pvalues[i - 1]);
+  }
+  return stats;
+}
+
+/** PBMove.new(moveid) */
+function makeMove(id) {
+  return RObject('PBMove', [
+    ['@pp', id ? movePP(id) : 0],
+    ['@id', id],
+    ['@ppup', 0],
+  ]);
+}
+
+/** Random 32-bit personal ID, built byte by byte like the game does. */
+function randomPersonalID() {
+  return (rand(256) | (rand(256) << 8) | (rand(256) << 16)) + rand(256) * 0x1000000;
+}
+
+/**
+ * Create a Pokemon.
+ *
+ * @param {object} opts
+ * @param {number} opts.species    National Dex number
+ * @param {number} opts.level      1..100
+ * @param {object} [opts.trainer]  { id, name, gender, language } to set as OT
+ * @param {string} [opts.nickname] defaults to the species name
+ * @param {number[]} [opts.iv]     six values 0..31, random when omitted
+ * @param {number[]} [opts.ev]     six values, zeroes when omitted
+ * @param {number} [opts.item]     held item id
+ * @param {number[]} [opts.moves]  up to 4 move ids; level-up moveset when omitted
+ * @param {boolean} [opts.shiny]   force shiny on/off, or leave to the PID
+ * @param {number} [opts.gender]   0 male, 1 female
+ * @param {number} [opts.nature]   0..24
+ * @param {number} [opts.ability]  0 first, 1 second, 2 hidden
+ * @param {number} [opts.happiness]
+ * @param {number} [opts.ball]
+ * @param {number} [opts.obtainMap]
+ * @param {boolean} [opts.egg]
+ */
+export function makePokemon(opts) {
+  const {
+    species, level, trainer, nickname, iv, ev, item = 0, moves,
+    shiny, gender, nature, ability, happiness, ball = 0,
+    obtainMap = 0, egg = false, speciesName,
+  } = opts;
+
+  if (!speciesExists(species)) throw new Error(`species ${species} does not exist`);
+  if (!Number.isInteger(level) || level < 1 || level > MAXLEVEL) {
+    throw new Error(`level must be a whole number from 1 to ${MAXLEVEL}`);
+  }
+
+  const sd = speciesData(species);
+
+  const ivs = iv?.length === 6 ? iv.map((v) => clamp(v, 0, 31)) : [0, 0, 0, 0, 0, 0].map(() => rand(32));
+  const evs = ev?.length === 6 ? ev.map((v) => clamp(v, 0, 255)) : [0, 0, 0, 0, 0, 0];
+  const personalID = randomPersonalID();
+  const trainerID = trainer?.id ?? 0;
+
+  const exp = startExperience(level, sd.growthRate);
+  // level is derived from exp, so re-derive it to be sure they agree
+  const realLevel = levelFromExperience(exp, sd.growthRate);
+
+  const effectiveNature = nature ?? personalID % 25;
+  const stats = calcStats({ baseStats: sd.baseStats, level: realLevel, iv: ivs, ev: evs, nature: effectiveNature });
+
+  const moveIds = (moves?.length ? moves : movesAtLevel(species, realLevel)).slice(0, 4);
+  const moveObjs = [];
+  for (let i = 0; i < 4; i++) moveObjs.push(makeMove(moveIds[i] || 0));
+
+  // Ivar order follows the game's initialize so a fresh Pokemon looks native.
+  const ivars = [
+    ['@timeReceived', Math.floor(Date.now() / 1000)],
+    ['@species', species],
+    ['@personalID', personalID],
+    ['@hp', egg ? 1 : stats[HP]],
+    ['@totalhp', stats[HP]],
+    ['@ev', RArray(evs.slice())],
+    ['@iv', RArray(ivs.slice())],
+    ['@trainerID', trainerID],
+    ['@ot', jsToStr(trainer?.name ?? '')],
+    ['@otgender', trainer?.gender ?? 2],
+    ['@happiness', happiness ?? sd.happiness],
+    ['@name', jsToStr(nickname || speciesName || `SPECIES${species}`)],
+    ['@eggsteps', egg ? 1 : 0],
+    ['@status', 0],
+    ['@statusCount', 0],
+    ['@item', item],
+    ['@mail', null],
+    ['@fused', null],
+    ['@ribbons', RArray([])],
+    ['@moves', RArray(moveObjs)],
+    ['@ballused', ball],
+    ['@exp', exp],
+    ['@attack', stats[1]],
+    ['@defense', stats[2]],
+    ['@speed', stats[3]],
+    ['@spatk', stats[4]],
+    ['@spdef', stats[5]],
+    ['@obtainMap', obtainMap],
+    ['@obtainText', null],
+    ['@obtainLevel', realLevel],
+    ['@obtainMode', 0],
+    ['@hatchedMap', 0],
+  ];
+
+  if (trainer?.language !== undefined) ivars.push(['@language', trainer.language]);
+  // These flags are nil unless forced; the game reads them as "not set".
+  if (shiny !== undefined && shiny !== null) ivars.push(['@shinyflag', !!shiny]);
+  if (gender !== undefined && gender !== null) ivars.push(['@genderflag', gender]);
+  if (nature !== undefined && nature !== null) ivars.push(['@natureflag', nature]);
+  if (ability !== undefined && ability !== null) ivars.push(['@abilityflag', ability]);
+
+  return RObject('PokeBattle_Pokemon', ivars);
+}
+
+function clamp(v, lo, hi) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return lo;
+  return Math.max(lo, Math.min(hi, Math.floor(n)));
+}
+
+/** Derived facts about a Pokemon object, for display. */
+export function describe(mon) {
+  const g = (n) => mon.ivars.find(([k]) => k === n)?.[1];
+  const species = g('@species');
+  const pid = g('@personalID') ?? 0;
+  const tid = g('@trainerID') ?? 0;
+  const natureFlag = g('@natureflag');
+  const shinyFlag = g('@shinyflag');
+  const a = (pid ^ tid) >>> 0;
+  const derivedShiny = ((a & 0xffff) ^ ((a >>> 16) & 0xffff)) < 100; // SHINYPOKEMONCHANCE
+  return {
+    species,
+    nickname: strToJs(g('@name') ?? jsToStr('')),
+    nature: natureFlag ?? pid % 25,
+    shiny: shinyFlag === undefined || shinyFlag === null ? derivedShiny : shinyFlag === true,
+    level: levelFromExperience(g('@exp') ?? 0, speciesData(species).growthRate),
+  };
+}
