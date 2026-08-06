@@ -10,7 +10,9 @@ import * as roster from './roster.js';
 import * as bag from './bag.js';
 import { optionsFor, labelCounts, nameOf } from './labels.js';
 import { SECTIONS } from './schema.js';
-import { recalcStats, STAT_INPUTS } from './create.js';
+import {
+  recalcStats, STAT_INPUTS, setContestStat, addRibbon, removeRibbon,
+} from './create.js';
 
 const UNDO_LIMIT = 20;
 
@@ -247,6 +249,37 @@ const ROUTES = {
     state.dirty = true;
     recordChange(`Maxed IVs for ${monLabel(mon)}`);
     return { ok: true, ...r };
+  },
+
+  '/api/pokemon/contest': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const before = mon?.ivars?.find(([k]) => k === b.ivar)?.[1] ?? null;
+    const value = setContestStat(mon, b.ivar, b.value);
+    state.dirty = true;
+    recordFieldChange(`${monLabel(mon)}: ${b.ivar.replace(/^@/, '')}`, [...b.path, { k: 'v', name: b.ivar }], before, value);
+    return { ok: true, value };
+  },
+
+  '/api/pokemon/ribbons/add': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const ribbons = addRibbon(mon, b.ribbon);
+    state.dirty = true;
+    recordChange(`Added ribbon ${Number(b.ribbon)} to ${monLabel(mon)}`);
+    return { ok: true, ribbons };
+  },
+
+  '/api/pokemon/ribbons/remove': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const ribbons = removeRibbon(mon, b.ribbon);
+    state.dirty = true;
+    recordChange(`Removed ribbon ${Number(b.ribbon)} from ${monLabel(mon)}`);
+    return { ok: true, ribbons };
   },
 
   '/api/pokemon/add': (b) => {

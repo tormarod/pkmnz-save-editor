@@ -8,6 +8,7 @@ import { strToJs, floatText } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 import { speciesExists, speciesData, itemInternalName } from './gamedata.js';
 import { levelFromExperience, MAXLEVEL } from './expTable.js';
+import { CONTEST_IVARS, CONTEST_NAMES } from './create.js';
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
 const ivar = (o, n) => (o && o.ivars ? o.ivars.find(([k]) => k === n)?.[1] : undefined);
@@ -195,6 +196,17 @@ function pokemon(mon, path) {
   const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD']; // Spe = Speed
   const statValues = STAT_IVARS.map((name, i) => ({ name: STAT_NAMES[i], value: num(g(name)) }));
 
+  // Contest stats and ribbons are only reachable via the Raw tree otherwise,
+  // and the ivars may not exist at all on a Pokemon that never entered a
+  // contest / earned a ribbon - default to 0 / empty for display, the write
+  // side (localApi.js) creates the ivar on first edit if it is missing.
+  const contest = CONTEST_IVARS.map((name, i) => ({
+    ivar: name,
+    label: CONTEST_NAMES[i],
+    value: num(g(name)) ?? 0,
+  }));
+  const ribbons = (g('@ribbons')?.items || []).map(num).filter((v) => v !== null);
+
   // The game only ever stores exp; level is derived from it via the species'
   // growth rate (levelFromExperience), so compute it here for display and
   // give the UI an @exp path to write through when the user edits the level.
@@ -220,6 +232,8 @@ function pokemon(mon, path) {
     egg: (num(g('@eggsteps')) || 0) > 0,
     moves,
     stats,
+    contest,
+    ribbons,
     fields: ['@species', '@name', '@hp', '@item', '@happiness', '@status',
       '@statusCount', '@eggsteps', '@obtainLevel', '@ballused', '@pokerus', '@markings',
       '@shinyflag', '@genderflag', '@abilityflag', '@natureflag', '@ot', '@otgender', '@obtainMode']

@@ -178,6 +178,8 @@ button.tiny { padding: 2px 8px; font-size: 11px; margin-top: 4px; margin-right: 
   padding: 3px 9px; font-family: var(--mono); font-size: 12px;
 }
 .statchip b { color: var(--dim); font-weight: 500; margin-right: 4px; }
+.ribbonchip { display: inline-flex; align-items: center; gap: 4px; }
+.ribbonchip button.tiny { margin: 0; padding: 0 5px; }
 
 .monhead, .flexhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .spacer { margin-left: auto; }
