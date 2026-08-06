@@ -9,6 +9,9 @@ Thumbs.db
 *.bak
 _tmp*
 
+# ...except the anonymized CI fixture
+!test/fixtures/*.rxdata
+
 .claude/
 .vscode/
 .idea/

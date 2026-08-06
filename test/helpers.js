@@ -18,6 +18,24 @@ export const GAME_DIR = process.env.PKMNZ_GAME_DIR
 export const SAVE_DIR = process.env.PKMNZ_SAVE_DIR
   || join(homedir(), 'Saved Games', 'Pokemon Z');
 
+/**
+ * A committed, anonymized save (trainer name/ID and OT scrubbed) so
+ * roundtrip/edit/create tests have something to run against even without a
+ * real game install — otherwise they silently skip in CI. See
+ * test/fixtures/README.md.
+ */
+export const FIXTURE_DIR = join(ROOT, 'test', 'fixtures');
+
+function rxdataIn(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((n) => n.toLowerCase().endsWith('.rxdata')).sort();
+}
+
+/** The real save folder if it has anything in it, otherwise the fixture. */
+export function activeSaveDir() {
+  return rxdataIn(SAVE_DIR).length ? SAVE_DIR : FIXTURE_DIR;
+}
+
 export function loadBundle() {
   const p = join(ROOT, 'data', 'gamedata.json');
   if (!existsSync(p)) {
@@ -31,16 +49,15 @@ export function haveGame() {
 }
 
 export function listSaves() {
-  if (!existsSync(SAVE_DIR)) return [];
-  return readdirSync(SAVE_DIR).filter((n) => n.toLowerCase().endsWith('.rxdata')).sort();
+  return rxdataIn(activeSaveDir());
 }
 
 export function readSave(file) {
-  return new Save(file, new Uint8Array(readFileSync(join(SAVE_DIR, file))));
+  return new Save(file, new Uint8Array(readFileSync(join(activeSaveDir(), file))));
 }
 
 export function saveBytes(file) {
-  return new Uint8Array(readFileSync(join(SAVE_DIR, file)));
+  return new Uint8Array(readFileSync(join(activeSaveDir(), file)));
 }
 
 /** Tiny assertion helper shared by every test file. */
