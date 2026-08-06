@@ -6,6 +6,7 @@ import { Save } from './save.js';
 import { children } from './save.js';
 import * as views from './views.js';
 import * as roster from './roster.js';
+import * as bag from './bag.js';
 import { optionsFor, labelCounts } from './labels.js';
 import { SECTIONS } from './schema.js';
 import { recalcStats, STAT_INPUTS } from './create.js';
@@ -161,6 +162,13 @@ const ROUTES = {
       : roster.partyToBox(s, Number(b.index), Number(b.box) || 0);
     state.dirty = true;
     return { ...r, summary: views.summary(s) };
+  },
+
+  '/api/item/add': (b) => {
+    const s = need();
+    const r = bag.addItem(s, { item: Number(b.item), qty: b.qty !== undefined ? Number(b.qty) : 1 });
+    state.dirty = true;
+    return { ...r, pockets: views.bag(s) };
   },
 };
 

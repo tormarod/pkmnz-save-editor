@@ -39,6 +39,15 @@ export function moveData(id) {
   return m ? { id, name: m.n, internal: m.i, totalpp: m.pp } : null;
 }
 
+export function itemExists(id) {
+  return Number.isInteger(id) && id >= 1 && !!data().items[id];
+}
+
+/** The bag pocket (1..N, matching items.txt's Pocket field) an item belongs in. */
+export function itemPocket(id) {
+  return data().items[id]?.pocket || null;
+}
+
 export function movePP(id) {
   return data().moves[id]?.pp ?? 5;
 }

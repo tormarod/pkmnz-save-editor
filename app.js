@@ -1,6 +1,7 @@
 import { loadData } from './src/data.js';
 import { call, openBytes } from './src/localApi.js';
 import { labelCounts } from './src/labels.js';
+import { NATURES } from './src/schema.js';
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, txt) => {
@@ -11,6 +12,14 @@ const el = (tag, cls, txt) => {
 };
 
 let dirty = false;
+
+const SPECIAL_TAG = { reserved: 'reserved', computed: 'script condition' };
+const SPECIAL_HINT = {
+  reserved: 'Blocked out by the developers for future use. Nothing currently reads it, so editing it is harmless but has no visible effect.',
+  computed: "Pokémon Essentials' built-in placeholder name for a scripted condition (time of day, day of week, ...). "
+    + "The game evaluates that expression directly and does not read this switch's stored value, "
+    + 'so toggling it here will not change anything in-game.',
+};
 
 /**
  * Same call shape the old server-backed build used, so every tab below is
@@ -56,9 +65,99 @@ async function setValue(path, value, node) {
   }
 }
 
+// Cache of { id, label } option lists fetched from /api/options, and the
+// <datalist> elements built from them, so searchable combo boxes (species,
+// items, maps, trainer types, ...) only load their list once.
+const kindOptionsCache = {};
+async function ensureKindOptions(kind) {
+  if (kindOptionsCache[kind]) return kindOptionsCache[kind];
+  const { options } = await api('/api/options', { body: JSON.stringify({ kind }) });
+  kindOptionsCache[kind] = options;
+  let dl = document.getElementById(`dl-${kind}`);
+  if (!dl) {
+    dl = el('datalist');
+    dl.id = `dl-${kind}`;
+    document.body.append(dl);
+  }
+  dl.innerHTML = '';
+  for (const o of options) dl.append(new Option(o.label));
+  return options;
+}
+
+/**
+ * Stringify an option value into a <select> key. `editValue()` reports a nil
+ * ivar as '' rather than null (see src/save.js), so both collapse to the same
+ * sentinel here - every field wired to `options` only ever holds a number,
+ * a boolean or nil, never a real empty string, so this is unambiguous.
+ */
+const optKey = (v) => (v === null || v === undefined || v === '' ? ' ' : String(v));
+
 /** An input bound to a Marshal path; commits on change. */
-function boundInput(row, { type, value, path, scalar }) {
+function boundInput(row, f) {
+  const {
+    type, value, path, scalar, options, mask, kind,
+  } = f;
+
+  // A bitmask packed into one integer: one checkbox per flag, all writing
+  // back to the same path.
+  if (mask) {
+    const wrap = el('span', 'maskrow');
+    let cur = typeof value === 'number' ? value : 0;
+    for (const { bit, label } of mask) {
+      const lab = el('label', 'masklabel');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = (cur & (1 << bit)) !== 0;
+      cb.onchange = async () => {
+        const next = cb.checked ? (cur | (1 << bit)) : (cur & ~(1 << bit));
+        if (await setValue(path, next, row)) cur = next;
+        else cb.checked = !cb.checked;
+      };
+      lab.append(cb, document.createTextNode(label));
+      wrap.append(lab);
+    }
+    return wrap;
+  }
+
   if (!scalar) return el('span', 'pv', '(not directly editable)');
+
+  // A field with a small fixed set of legal values.
+  if (options) {
+    const sel = el('select');
+    for (const o of options) sel.append(new Option(o.label, optKey(o.value)));
+    sel.value = optKey(value);
+    sel.onchange = async () => {
+      const chosen = options.find((o) => optKey(o.value) === sel.value);
+      const raw = chosen ? chosen.value : null;
+      if (!(await setValue(path, raw, row))) sel.value = optKey(value);
+    };
+    return sel;
+  }
+
+  // A field whose number should read as a name: searchable combo box over
+  // /api/options, same UX as the "add Pokemon" species/item pickers.
+  if (kind) {
+    const inp = el('input');
+    inp.type = 'text';
+    inp.setAttribute('list', `dl-${kind}`);
+    const label = (v, opts) => {
+      if (v === null || v === undefined || v === 0) return v ? String(v) : '';
+      const hit = opts.find((o) => o.id === v);
+      return hit ? hit.label : String(v);
+    };
+    inp.value = label(value, kindOptionsCache[kind] || []);
+    if (!kindOptionsCache[kind]) {
+      ensureKindOptions(kind).then((opts) => { inp.value = label(value, opts); });
+    }
+    inp.onchange = async () => {
+      const opts = kindOptionsCache[kind] || [];
+      const id = pickId(inp.value, opts);
+      if (await setValue(path, id, row)) inp.value = label(id, opts);
+      else inp.value = label(value, opts);
+    };
+    return inp;
+  }
+
   if (type === 'bool') {
     const cb = el('input');
     cb.type = 'checkbox';
@@ -76,7 +175,16 @@ function boundInput(row, { type, value, path, scalar }) {
   if (type === 'int') inp.step = '1';
   inp.value = value === null ? '' : value;
   inp.onchange = async () => {
-    const ok = await setValue(path, inp.type === 'number' ? Number(inp.value) : inp.value, row);
+    let raw = inp.value;
+    if (inp.type === 'number') {
+      raw = Number(raw);
+    } else if (type === 'nil' && raw.trim() !== '' && Number.isFinite(Number(raw))) {
+      // A never-touched variable is nil, not 0 (see indexedList() in views.js),
+      // so it would otherwise land on this generic text branch: typing "7" here
+      // must still write a Fixnum, not the String "7".
+      raw = Number(raw);
+    }
+    const ok = await setValue(path, raw, row);
     if (!ok) inp.value = value === null ? '' : value;
   };
   return inp;
@@ -134,7 +242,16 @@ function makeIndexedTab(kind, listSel, filterSel, onlySel) {
     for (const r of shown.slice(0, 1200)) {
       const row = el('div', 'row');
       row.append(el('span', 'idx', String(r.index)));
-      row.append(el('span', `nm${r.name ? '' : ' unnamed'}`, r.name || '(unnamed)'));
+      const nmWrap = el('span', 'nmwrap');
+      const nm = el('span', `nm${r.name ? '' : ' unnamed'}`, r.name || '(unnamed)');
+      nmWrap.append(nm);
+      if (r.special) {
+        nm.title = SPECIAL_HINT[r.special];
+        const tag = el('span', `tag tag-${r.special}`, SPECIAL_TAG[r.special]);
+        tag.title = SPECIAL_HINT[r.special];
+        nmWrap.append(tag);
+      }
+      row.append(nmWrap);
       row.append(boundInput(row, r));
       frag.append(row);
     }
@@ -164,9 +281,10 @@ async function loadTrainer() {
   const grid = el('div', 'grid');
   for (const f of t.fields) {
     const row = el('div', 'field');
-    row.append(el('label', null, f.ivar.replace(/^@/, '')));
+    row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
     row.append(boundInput(row, f));
     if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.note) row.append(el('span', 'note', f.note));
     grid.append(row);
   }
   card.append(grid);
@@ -197,14 +315,17 @@ async function loadTrainer() {
 
 // --- bag ---------------------------------------------------------------------
 
-const POCKETS = ['Items', 'Medicine', 'Poké Balls', 'TMs & HMs', 'Berries',
-  'Mail', 'Battle items', 'Key items', 'Pocket 9'];
+// Index 0 is unused - PBS/items.txt numbers its Pocket field 1..8, and the
+// save uses that same number as the @pockets array index (see src/bag.js).
+const POCKETS = [null, 'Items', 'Medicine', 'Poké Balls', 'TMs & HMs', 'Berries',
+  'Mail', 'Battle items', 'Key items'];
 
 async function loadBag() {
   const { pockets } = await api('/api/bag');
   const body = $('#bagBody');
   body.innerHTML = '';
   for (const p of pockets) {
+    if (p.pocket === 0) continue; // unused, mirrors variable/switch index 0
     const card = el('div', 'card');
     const h = el('h3', null, POCKETS[p.pocket] || `Pocket ${p.pocket}`);
     h.append(el('small', null, `${p.items.length} item${p.items.length === 1 ? '' : 's'}`));
@@ -229,6 +350,36 @@ async function loadBag() {
     }
     body.append(card);
   }
+}
+
+/** Wires the "Add an item" form once; the item goes into its PBS-declared pocket. */
+async function initBagAddForm() {
+  if (initBagAddForm.done) return;
+  initBagAddForm.done = true;
+  await ensureItemOptions();
+
+  const preview = () => {
+    const id = pickId($('#addItemText2').value, itemOpts);
+    const hit = itemOpts.find((o) => o.id === id);
+    const qty = Number($('#addItemQty').value) || 1;
+    $('#addItemPreview').textContent = hit
+      ? `Will add ${qty}x ${hit.label}.`
+      : ($('#addItemText2').value.trim() ? 'No item matches that.' : '');
+  };
+  $('#addItemText2').oninput = preview;
+  $('#addItemQty').oninput = preview;
+
+  $('#addItemGo').onclick = async () => {
+    const item = pickId($('#addItemText2').value, itemOpts);
+    if (!item) { toast('Pick an item first', true); return; }
+    const qty = Number($('#addItemQty').value) || 1;
+    try {
+      const r = await api('/api/item/add', { method: 'POST', body: JSON.stringify({ item, qty }) });
+      setDirty(true);
+      toast(r.stacked ? `Now have ${r.qty} in the ${POCKETS[r.pocket] || `pocket ${r.pocket}`} pocket` : `Added to the ${POCKETS[r.pocket] || `pocket ${r.pocket}`} pocket`);
+      await loadBag();
+    } catch (e) { toast(e.message, true); }
+  };
 }
 
 // --- party & boxes -----------------------------------------------------------
@@ -299,8 +450,10 @@ function monCard(mon, title, loc) {
   const grid = el('div', 'grid');
   for (const f of mon.fields) {
     const row = el('div', 'field');
-    row.append(el('label', null, f.ivar.replace(/^@/, '')));
+    row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
     row.append(boundInput(row, f));
+    if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.note) row.append(el('span', 'note', f.note));
     grid.append(row);
   }
   card.append(grid);
@@ -376,10 +529,14 @@ let allBoxes = [];
 let speciesOpts = [];
 let itemOpts = [];
 
-const NATURES = ['Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty', 'Bold', 'Docile',
-  'Relaxed', 'Impish', 'Lax', 'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive',
-  'Modest', 'Mild', 'Quiet', 'Bashful', 'Rash', 'Calm', 'Gentle', 'Sassy',
-  'Careful', 'Quirky'];
+/** Loads the item list once and fills the shared #itemList datalist. */
+async function ensureItemOptions() {
+  if (itemOpts.length) return itemOpts;
+  itemOpts = (await api('/api/options', { body: JSON.stringify({ kind: 'items' }) })).options;
+  const il = $('#itemList');
+  for (const o of itemOpts) il.append(new Option(o.label));
+  return itemOpts;
+}
 
 function fillBoxPicker() {
   const sel = $('#addBoxNum');
@@ -427,11 +584,9 @@ let evInputs = [];
 async function initAddForm() {
   if (speciesOpts.length) return;
   speciesOpts = (await api('/api/options', { body: JSON.stringify({ kind: 'species' }) })).options;
-  itemOpts = (await api('/api/options', { body: JSON.stringify({ kind: 'items' }) })).options;
+  await ensureItemOptions();
   const sl = $('#speciesList');
   for (const o of speciesOpts) sl.append(new Option(o.label));
-  const il = $('#itemList');
-  for (const o of itemOpts) il.append(new Option(o.label));
 
   const nat = $('#addNature');
   nat.append(new Option('From personal ID', ''));
@@ -542,7 +697,7 @@ const LOADERS = {
   variables: makeIndexedTab('variables', '#varList', '#varFilter', '#varOnlySet'),
   switches: makeIndexedTab('switches', '#swList', '#swFilter', '#swOnlySet'),
   trainer: loadTrainer,
-  bag: loadBag,
+  bag: async () => { await initBagAddForm(); await loadBag(); },
   party: async () => { await initAddForm(); await loadParty(); },
   raw: loadTree,
 };
