@@ -23,6 +23,9 @@ than it needs to be. Nothing here is code health.
    `♀ · Adamant · ✨ Shiny · Static` line in the header; show the derived value
    next to each override dropdown so "Natural" has a visible meaning.
 
+   Nature, gender and shininess need nothing new. The **ability name** does —
+   it depends on item 19, which is why the two are sequenced together.
+
 2. **Moves are bare numeric ID inputs.** `src/ui/tabs/party.js:252` builds
    `type: 'int'` inputs for `@id`, with the name in a static neighbouring cell,
    so changing a move means knowing its number. Every other id field already
@@ -137,20 +140,34 @@ through the Raw tree. The labelling was the hard part and it is already done.
 
 ## Tier 4 — data bundle gaps blocking good UI
 
-19. **`tools/build-data.js` only parses `Name`, `InternalName` and `Moves`**
-    from `PBS/pokemon.txt` (`:101`). Adding `Abilities`, `HiddenAbility`,
-    `Type1`/`Type2` and `Evolutions` unlocks, in order of value:
+19. **`tools/build-data.js` reads three keys out of `PBS/pokemon.txt`; the file
+    has 31.** The parse at `:101` matches only `Name|InternalName|Moves`.
+    Counted against the real install, the dropped keys carry most of what the
+    rest of this plan needs:
 
-    - real ability names in the First / Second / Hidden dropdown — the
-      `abilities` name table is already in the bundle but nothing connects it
-      to a species,
-    - type chips on Pokémon cards,
-    - an "evolve this Pokémon" action,
-    - the moveset/ability legality checks the README currently lists as a known
-      limitation.
+    | Key | Species covered | Unlocks |
+    |---|---|---|
+    | `Abilities` / `HiddenAbility` | 1018 / 870 | Real names in the First/Second/Hidden dropdown (item 1). The `abilities` name table is already in the bundle; nothing connects it to a species. |
+    | `StepsToHatch` | 1018 | Real hatch counts — closes the egg-step gap the README documents, and unblocks item 21's egg tools |
+    | `Evolutions` | 1018 | An "evolve this Pokémon" action |
+    | `Type1` / `Type2` | 1018 / 590 | Type chips on Pokémon cards |
+    | `EffortPoints` | 1018 | EV yield |
+    | `Compatibility` / `EggMoves` | 1018 / 389 | Egg groups, breeding legality |
+    | `Rareness`, `Height`, `Weight`, `Kind`, `Pokedex` | 1018 | A real dex entry on the card |
+    | `FormNames` | 46 | The `formseen` / `formlastseen` fields `improvements.md` flagged as unexplained |
 
-    This is the cheapest data change with the widest UI payoff. It costs bundle
-    size, so measure before and after.
+    Types are also in `Data/dexdata.dat` at record offsets 8 and 9 (a
+    single-typed species stores the same value twice), so either source works —
+    but `pokemon.txt` keeps all of the above in one parse.
+
+    Cost: `Abilities` + `HiddenAbility` + `Evolutions` alone serialize to ~68 KB
+    raw against the current 372 KB bundle, and shrink once names are encoded as
+    ids the way `moves`/`items` already are. Measure again after adding the rest.
+
+    This is the cheapest data change with the widest UI payoff, and it needs a
+    game install on hand — which is why it is scheduled first. On its own it
+    changes nothing a user can see, so it should land together with item 1
+    rather than as a standalone commit.
 
 20. **Item icons cover ~80 curated vanilla items** (`src/sprites.js:27`);
     everything else renders nothing, leaving ragged rows. A neutral placeholder
@@ -168,8 +185,9 @@ through the Raw tree. The labelling was the hard part and it is already done.
     - **Max happiness**, **max PP Ups**,
     - **Give a set** — all Poké Balls, all TMs, a full healing kit,
     - **Egg tools** — "hatch now" (clear `@eggsteps`, set `@obtainMode` to 1),
-      and "make this an egg". This also closes the `makePokemon()` egg-step gap
-      the README documents.
+      and "make this an egg" using the species' real `StepsToHatch` from item 19
+      instead of `makePokemon()`'s current placeholder of 1. This closes the
+      egg-step gap the README documents as a known limitation.
 
 ## Loose ends
 
@@ -185,16 +203,28 @@ through the Raw tree. The labelling was the hard part and it is already done.
 
 ## Suggested order
 
-1 → 2 → 5 → 3 → 4 → 6 are all small and independent; 1 and 2 are the two the
-user notices immediately.
+The tiers above rank value against effort; this is the order to actually build
+in. Item numbers are stable identifiers, not positions.
 
-Then 19 (data bundle), because 1's ability display and Tier 5's evolve action
-both depend on it, and regenerating the bundle needs a game install on hand.
+**1. Items 19 → 1, as one piece of work.** Item 19 is a prerequisite for the
+ability names item 1 displays, and deferring it means coming back to rework
+item 1 later. It also needs a game install on hand to regenerate the bundle, so
+it is worth doing while that is true. Item 1 is the change a user notices
+first, and it is what makes the data work visible — neither should ship alone.
 
-Then 9 and 10 as one piece of work — both are "render a labelled class with
-`boundInput()`" and share whatever grouping helper the first one grows.
-11 and 12 follow naturally as further tabs.
+**2. The rest of Tier 1**, none of which touches the bundle and all of which is
+independent: 2 → 5 → 3 → 4 → 6, with 7 and 8 whenever convenient. Item 2 is the
+next most visible after item 1.
 
-13 and 14 are the highest-impact and highest-effort items and should be scoped
-separately. 17 is worth doing before 18, since the validator wants somewhere to
-put its output and the change panel is that place.
+**3. Item 21's egg tools**, which become worth doing as soon as 19 lands —
+`StepsToHatch` is the only thing they were missing. The rest of 21 can follow
+any time.
+
+**4. Items 9 and 10 together** — both are "render a labelled class with
+`boundInput()`" and share whatever grouping helper the first one grows. 11 and
+12 follow naturally as further tabs.
+
+**5. Items 13 and 14** are the highest-impact and highest-effort items here and
+should be scoped separately rather than folded into a larger batch. Item 17
+belongs before 18, since the validator needs somewhere to put its output and
+the change panel is that place.
