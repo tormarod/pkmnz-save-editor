@@ -167,12 +167,18 @@ function pokemon(mon, path) {
     })),
   }));
 
+  // The six stats the game caches in the save and reads back directly.
+  const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk', '@spdef'];
+  const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spd', 'SpA', 'SpD'];
+  const statValues = STAT_IVARS.map((name, i) => ({ name: STAT_NAMES[i], value: num(g(name)) }));
+
   return {
     species,
     speciesName: nameOf('species', species),
     nickname: text(g('@name')),
     level: null, // the game derives level from exp; shown as exp instead
     exp: num(g('@exp')),
+    statValues,
     hp: num(g('@hp')),
     totalhp: num(g('@totalhp')),
     item: num(g('@item')),

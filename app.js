@@ -40,9 +40,15 @@ function setDirty(v) {
 /** Write one value back, keeping the row's visual state in sync. */
 async function setValue(path, value, node) {
   try {
-    await api('/api/set', { method: 'POST', body: JSON.stringify({ path, value }) });
+    const r = await api('/api/set', { method: 'POST', body: JSON.stringify({ path, value }) });
     setDirty(true);
     node?.classList.add('changed');
+    // Editing IVs/EVs/level/species recomputes the Pokemon's cached stats, so
+    // redraw the tab to show the new numbers.
+    if (r.recalculated && current === 'party') {
+      await loadParty();
+      toast('Stats recalculated');
+    }
     return true;
   } catch (e) {
     toast(e.message, true);
@@ -267,9 +273,28 @@ function monCard(mon, title, loc) {
         await loadParty();
       } catch (e) { toast(e.message, true); }
     };
-    h.append(move, del);
+    const recalc = el('button', 'tiny', 'Recalculate stats');
+    recalc.title = 'Recompute the cached stats from species, level, IVs, EVs and nature';
+    recalc.onclick = async () => {
+      try {
+        await api('/api/pokemon/recalc', { body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        await loadParty();
+        toast('Stats recalculated');
+      } catch (e) { toast(e.message, true); }
+    };
+    h.append(move, recalc, del);
   }
   card.append(h);
+
+  // The game reads these six straight out of the save, so show what is stored.
+  const statLine = el('div', 'statline');
+  for (const s of mon.statValues || []) {
+    const chip = el('span', 'statchip');
+    chip.append(el('b', null, s.name), document.createTextNode(` ${s.value}`));
+    statLine.append(chip);
+  }
+  if (statLine.children.length) card.append(statLine);
 
   const grid = el('div', 'grid');
   for (const f of mon.fields) {

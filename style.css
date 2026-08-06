@@ -147,6 +147,13 @@ main { padding: 16px 20px 60px; }
 .statrow { display: flex; gap: 4px; }
 .statrow input { width: 100%; min-width: 0; font-family: var(--mono); font-size: 12px; text-align: center; }
 button.tiny { padding: 2px 8px; font-size: 11px; margin-top: 4px; margin-right: 4px; }
+.statline { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+.statchip {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 3px 9px; font-family: var(--mono); font-size: 12px;
+}
+.statchip b { color: var(--dim); font-weight: 500; margin-right: 4px; }
+
 .monhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .monhead .spacer { margin-left: auto; }
 button.danger { color: var(--bad); border-color: #533; }

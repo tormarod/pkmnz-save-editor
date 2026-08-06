@@ -5,7 +5,7 @@
 // Mirrored from 122_PokeBattle_Pokemon.rb: initialize, calcStats, calcHP,
 // calcStat, level=, nature, gender, isShiny?, and PBMove#initialize.
 
-import { RObject, RArray, jsToStr, strToJs } from './marshal.js';
+import { RObject, RArray, jsToStr, strToJs, bignumToJs } from './marshal.js';
 import { speciesData, speciesExists, movesAtLevel, movePP } from './gamedata.js';
 import { startExperience, levelFromExperience, MAXLEVEL } from './expTable.js';
 
@@ -40,6 +40,64 @@ export function calcStats({ baseStats, level, iv, ev, nature }) {
       : calcStat(baseStats[i], level, iv[i], ev[i], pvalues[i - 1]);
   }
   return stats;
+}
+
+/** The ivars a Pokemon's six stats are cached in, in PBStats order. */
+export const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk', '@spdef'];
+
+/** Editing any of these changes the stats, so they have to be recomputed. */
+export const STAT_INPUTS = ['@iv', '@ev', '@exp', '@species', '@natureflag', '@personalID'];
+
+const getIvar = (mon, name) => mon.ivars.find(([k]) => k === name)?.[1];
+const setIvar = (mon, name, value) => {
+  const pair = mon.ivars.find(([k]) => k === name);
+  if (pair) pair[1] = value;
+  else mon.ivars.push([name, value]);
+};
+const plain = (v) => (typeof v === 'number' ? v : v && v.t === 'bignum' ? bignumToJs(v) : 0);
+
+/**
+ * Recompute a Pokemon's cached stats from its species, level, IVs, EVs and
+ * nature — what PokeBattle_Pokemon#calcStats does.
+ *
+ * The save stores the six stats as plain ivars and the game reads them straight
+ * back; calcStats only runs on level-up, evolution, vitamins and the like. So
+ * after editing IVs or EVs the cached values are stale until this is called.
+ *
+ * Current HP keeps its damage offset, exactly as calcStats does.
+ */
+export function recalcStats(mon) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  const species = plain(getIvar(mon, '@species'));
+  const sd = speciesData(species);
+  const level = levelFromExperience(plain(getIvar(mon, '@exp')), sd.growthRate);
+
+  const iv = (getIvar(mon, '@iv')?.items || []).map(plain);
+  const ev = (getIvar(mon, '@ev')?.items || []).map(plain);
+  while (iv.length < 6) iv.push(0);
+  while (ev.length < 6) ev.push(0);
+
+  const flag = getIvar(mon, '@natureflag');
+  const nature = flag === null || flag === undefined
+    ? plain(getIvar(mon, '@personalID')) % 25
+    : plain(flag);
+
+  const stats = calcStats({ baseStats: sd.baseStats, level, iv, ev, nature });
+
+  // calcStats keeps the damage taken, then clamps into range.
+  const oldTotal = plain(getIvar(mon, '@totalhp'));
+  const oldHp = plain(getIvar(mon, '@hp'));
+  const diff = oldTotal - oldHp;
+  let hp = stats[HP] - diff;
+  if (hp <= 0) hp = 0;
+  if (hp > stats[HP]) hp = stats[HP];
+
+  STAT_IVARS.forEach((name, i) => setIvar(mon, name, stats[i]));
+  setIvar(mon, '@hp', hp);
+
+  return { level, nature, stats, hp };
 }
 
 /** PBMove.new(moveid) */

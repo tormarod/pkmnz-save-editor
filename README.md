@@ -61,6 +61,23 @@ correct behaviour — `$Trainer.@id` is stored as a Bignum for exactly this reas
 The writer now promotes out-of-range integers automatically, including burning an
 object-link table index the way Ruby does so later links stay aligned.
 
+## Stats are cached, not derived
+
+A Pokémon's six stats live in the save as plain ivars — `@totalhp`, `@attack`,
+`@defense`, `@speed`, `@spatk`, `@spdef` — and the game reads them straight back.
+`calcStats` only runs on level-up, evolution, vitamins and similar events, never
+on load.
+
+So editing IVs or EVs and stopping there changes nothing you can see in game: the
+EV/IV screen shows the new values while the stats screen keeps the old numbers.
+Editing `@iv`, `@ev`, `@exp`, `@species` or `@natureflag` therefore recomputes the
+cached stats automatically, and each Pokémon has a **Recalculate stats** button
+for anything that drifted. Current HP keeps its damage offset, exactly as
+`calcStats` does.
+
+For reference, 252 EVs are worth `252 >> 2 = 63` points before the nature
+multiplier.
+
 ## The save slot
 
 Variable 99 — named **"NO TOCAR"** ("do not touch") in the editor — holds the
@@ -192,6 +209,8 @@ npm test
 - `test/create.js` checks generated stats against hand-computed values and
   confirms injected Pokémon can be removed byte-cleanly.
 - `test/bignum.js` guards the Fixnum/Bignum boundary.
+- `test/recalc.js` checks that EVs actually move the stats, that writing `@ev`
+  alone leaves them stale, and that editing one through the API recomputes them.
 - `test/smoke.js` boots the built site in a browser (see above). Needs
   `npm install --no-save playwright && npx playwright install chromium`; it skips
   itself if Playwright is absent.

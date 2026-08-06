@@ -8,6 +8,7 @@ import * as views from './views.js';
 import * as roster from './roster.js';
 import { optionsFor, labelCounts } from './labels.js';
 import { SECTIONS } from './schema.js';
+import { recalcStats, STAT_INPUTS } from './create.js';
 
 const state = {
   save: null,
@@ -34,6 +35,29 @@ export function isDirty() {
 function need() {
   if (!state.save) throw new Error('open a save file first');
   return state.save;
+}
+
+/**
+ * After editing a value, if it sits inside a Pokemon and feeds into its stats,
+ * recompute that Pokemon's cached stats. Returns true when it did.
+ *
+ * Walks back from the edited path to the nearest enclosing PokeBattle_Pokemon,
+ * so it works for the Party tab and the raw tree alike.
+ */
+function recalcEnclosingPokemon(save, path) {
+  for (let i = path.length - 1; i >= 0; i--) {
+    const prefix = path.slice(0, i);
+    let node;
+    try { node = save.get(prefix); } catch { continue; }
+    if (!node || node.t !== 'obj' || node.cls !== 'PokeBattle_Pokemon') continue;
+
+    // path[i] is the ivar of the Pokemon that was touched (directly or deeper)
+    const step = path[i];
+    if (step.k !== 'v' || !STAT_INPUTS.includes(step.name)) return false;
+    recalcStats(node);
+    return true;
+  }
+  return false;
 }
 
 const ROUTES = {
@@ -73,9 +97,26 @@ const ROUTES = {
   '/api/options': (b) => ({ options: optionsFor(b.kind) }),
 
   '/api/set': (b) => {
-    const applied = need().set(b.path, b.value);
+    const s = need();
+    const applied = s.set(b.path, b.value);
     state.dirty = true;
-    return { ok: true, applied: applied === null ? 'nil' : String(applied?.t ? '(object)' : applied) };
+    // A Pokemon's six stats are cached in the save and the game reads them
+    // straight back, so editing IVs/EVs/level/species has to recompute them or
+    // the change is invisible in game.
+    const recalculated = recalcEnclosingPokemon(s, b.path);
+    return {
+      ok: true,
+      recalculated,
+      applied: applied === null ? 'nil' : String(applied?.t ? '(object)' : applied),
+    };
+  },
+
+  '/api/pokemon/recalc': (b) => {
+    const s = need();
+    const mon = s.get(b.path);
+    const r = recalcStats(mon);
+    state.dirty = true;
+    return { ok: true, ...r };
   },
 
   '/api/pokemon/add': (b) => {
