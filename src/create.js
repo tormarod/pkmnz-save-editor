@@ -100,6 +100,51 @@ export function recalcStats(mon) {
   return { level, nature, stats, hp };
 }
 
+/** The six contest-stat ivars, in the order the game's contest UI shows them. */
+export const CONTEST_IVARS = ['@cool', '@beauty', '@cute', '@smart', '@tough', '@sheen'];
+export const CONTEST_NAMES = ['Cool', 'Beauty', 'Cute', 'Smart', 'Tough', 'Sheen'];
+
+/**
+ * Set one contest stat (0-255), creating the ivar if this Pokemon never had
+ * one set - makePokemon() doesn't set any, and plenty of wild-caught Pokemon
+ * won't have entered a contest either.
+ */
+export function setContestStat(mon, ivarName, value) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  if (!CONTEST_IVARS.includes(ivarName)) throw new Error(`not a contest stat: ${ivarName}`);
+  const n = Math.floor(Number(value));
+  if (!Number.isInteger(n) || n < 0 || n > 255) throw new Error('contest stats must be a whole number from 0 to 255');
+  setIvar(mon, ivarName, n);
+  return n;
+}
+
+/** Add a ribbon id to @ribbons, creating the ivar if this Pokemon has none. */
+export function addRibbon(mon, ribbonId) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  const id = Math.floor(Number(ribbonId));
+  if (!Number.isInteger(id) || id < 0) throw new Error('ribbon id must be a non-negative whole number');
+  const items = (getIvar(mon, '@ribbons')?.items || []).map(plain);
+  if (items.includes(id)) throw new Error('this Pokémon already has that ribbon');
+  items.push(id);
+  setIvar(mon, '@ribbons', RArray(items));
+  return items;
+}
+
+/** Remove a ribbon id from @ribbons. */
+export function removeRibbon(mon, ribbonId) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+  const id = Math.floor(Number(ribbonId));
+  const items = (getIvar(mon, '@ribbons')?.items || []).map(plain).filter((v) => v !== id);
+  setIvar(mon, '@ribbons', RArray(items));
+  return items;
+}
+
 /** PBMove.new(moveid) */
 function makeMove(id) {
   return RObject('PBMove', [

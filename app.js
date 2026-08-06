@@ -636,6 +636,93 @@ function monCard(mon, title, loc) {
     card.append(wrap);
   }
 
+  // Contest stats: plain 0-255 counters. The ivars may not exist yet on this
+  // Pokemon (makePokemon() never sets them, and neither does most wild data),
+  // so the backend creates them on first edit rather than requiring a value.
+  if (mon.contest?.length) {
+    const wrap = el('div', 'field');
+    wrap.append(el('label', null, 'Contest'));
+    const line = el('div', 'badges');
+    for (const c of mon.contest) {
+      const lab = el('label', null, `${c.label} `);
+      const inp = el('input');
+      inp.type = 'number';
+      inp.min = 0;
+      inp.max = 255;
+      inp.value = c.value;
+      inp.style.width = '60px';
+      inp.onchange = async () => {
+        const v = Math.max(0, Math.min(255, Math.round(Number(inp.value)) || 0));
+        try {
+          await api('/api/pokemon/contest', {
+            method: 'POST',
+            body: JSON.stringify({ path: mon.path, ivar: c.ivar, value: v }),
+          });
+          setDirty(true);
+          refreshUndoButtons();
+          inp.value = v;
+        } catch (e) { toast(e.message, true); inp.value = c.value; }
+      };
+      lab.append(inp);
+      line.append(lab);
+    }
+    line.append(el('span', 'fieldhint', '(0–255)'));
+    wrap.append(line);
+    card.append(wrap);
+  }
+
+  // Ribbons: a plain array of ribbon ids. Shown as removable chips with an
+  // add-by-id control, since the Raw tree only exposes one array index at a
+  // time and this fangame doesn't ship a named ribbon list to pick from.
+  const ribbonWrap = el('div', 'field');
+  ribbonWrap.append(el('label', null, 'Ribbons'));
+  const ribbonLine = el('div', 'badges');
+  const renderRibbons = (ids) => {
+    ribbonLine.innerHTML = '';
+    for (const id of ids) {
+      const chip = el('span', 'statchip ribbonchip');
+      chip.append(document.createTextNode(`${id} `));
+      const rm = el('button', 'tiny danger', '×');
+      rm.title = `Remove ribbon ${id}`;
+      rm.onclick = async () => {
+        try {
+          const r = await api('/api/pokemon/ribbons/remove', {
+            method: 'POST',
+            body: JSON.stringify({ path: mon.path, ribbon: id }),
+          });
+          setDirty(true);
+          refreshUndoButtons();
+          renderRibbons(r.ribbons);
+        } catch (e) { toast(e.message, true); }
+      };
+      chip.append(rm);
+      ribbonLine.append(chip);
+    }
+    const addInp = el('input');
+    addInp.type = 'number';
+    addInp.min = 0;
+    addInp.placeholder = 'ribbon id';
+    addInp.style.width = '90px';
+    const addBtn = el('button', 'tiny', 'Add');
+    addBtn.onclick = async () => {
+      if (addInp.value === '') return;
+      try {
+        const r = await api('/api/pokemon/ribbons/add', {
+          method: 'POST',
+          body: JSON.stringify({ path: mon.path, ribbon: Number(addInp.value) }),
+        });
+        setDirty(true);
+        refreshUndoButtons();
+        addInp.value = '';
+        renderRibbons(r.ribbons);
+      } catch (e) { toast(e.message, true); }
+    };
+    ribbonLine.append(addInp, addBtn);
+  };
+  renderRibbons(mon.ribbons || []);
+  ribbonWrap.append(ribbonLine);
+  card.append(ribbonWrap);
+
   if (mon.moves.length) {
     const table = el('table', 'items');
     const head = el('tr');
