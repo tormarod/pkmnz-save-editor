@@ -7,7 +7,7 @@ import { speciesSpriteUrl, itemSpriteUrl, attachSprite } from '../../sprites.js'
 import { $, el } from '../dom.js';
 import {
   api, boundInput, setValue, setDirty, refreshUndoButtons, toast,
-  ensureItemOptions, itemOpts, pickId,
+  ensureItemOptions, ensureKindOptions, itemOpts, pickId,
 } from '../session.js';
 
 let allBoxes = [];
@@ -250,26 +250,97 @@ function monCard(mon, title, loc) {
   ribbonWrap.append(ribbonLine);
   card.append(ribbonWrap);
 
+  const moveWrap = el('div', 'field');
+  moveWrap.append(el('label', null, 'Moves'));
+  const moveBody = el('div');
+
+  if (mon.moves.length) {
+    const actions = el('div', 'badges');
+    const restore = el('button', 'tiny', 'Restore PP');
+    restore.title = 'Refill every move to its max PP';
+    restore.onclick = async () => {
+      try {
+        await api('/api/pokemon/moves/restorePP', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    const relearn = el('button', 'tiny', 'Relearn level-up set');
+    relearn.title = 'Replace this Pokémon\'s moves with what it would know at its current level';
+    relearn.onclick = async () => {
+      if (!confirm(`Replace ${monName}'s moves with the level-up set for its current level?`)) return;
+      try {
+        await api('/api/pokemon/moves/relearn', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    actions.append(restore, relearn);
+    moveBody.append(actions);
+  }
+
   if (mon.moves.length) {
     const table = el('table', 'items');
     const head = el('tr');
-    for (const c of ['ID', 'Move', 'PP']) head.append(el('th', null, c));
+    for (const c of ['Move', 'PP', 'PP Ups', '']) head.append(el('th', null, c));
     table.append(head);
-    mon.moves.forEach((m, i) => {
+    mon.moves.forEach((m) => {
       const tr = el('tr');
-      const idc = el('td');
-      idc.append(boundInput(tr, {
-        type: 'int', value: m.id, path: m.idPath, scalar: true, label: `${monName}: move ${i + 1}`,
+      const namec = el('td');
+      namec.append(boundInput(tr, {
+        kind: 'moves', value: m.id, path: m.idPath, scalar: true, label: `${monName}: move slot ${m.slot + 1}`,
       }));
       const ppc = el('td');
       ppc.append(boundInput(tr, {
-        type: 'int', value: m.pp, path: m.ppPath, scalar: true, label: `${monName}: ${m.name || `move ${i + 1}`} PP`,
+        type: 'int', value: m.pp, path: m.ppPath, scalar: true, label: `${monName}: ${m.name || 'move'} PP`,
       }));
-      tr.append(idc, el('td', null, m.name || '(unknown)'), ppc);
+      const ppupc = el('td');
+      ppupc.append(boundInput(tr, {
+        type: 'int', value: m.ppup, path: m.ppupPath, scalar: true, range: [0, 3], label: `${monName}: ${m.name || 'move'} PP Ups`,
+      }));
+      const rmc = el('td');
+      const forget = el('button', 'tiny danger', 'Forget');
+      forget.onclick = async () => {
+        try {
+          await api('/api/pokemon/moves/forget', { method: 'POST', body: JSON.stringify({ path: mon.path, slot: m.slot }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      rmc.append(forget);
+      tr.append(namec, ppc, ppupc, rmc);
       table.append(tr);
     });
-    card.append(table);
+    moveBody.append(table);
   }
+
+  if (mon.moves.length < 4) {
+    const addRow = el('div', 'badges');
+    const addInp = el('input');
+    addInp.type = 'text';
+    addInp.setAttribute('list', 'dl-moves');
+    addInp.placeholder = 'move to learn';
+    addInp.style.width = '160px';
+    const addBtn = el('button', 'tiny', 'Learn');
+    addBtn.onclick = async () => {
+      const opts = await ensureKindOptions('moves');
+      const id = pickId(addInp.value, opts);
+      if (!id) { toast('Pick a move first', true); return; }
+      try {
+        await api('/api/pokemon/moves/learn', { method: 'POST', body: JSON.stringify({ path: mon.path, moveId: id }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    addRow.append(addInp, addBtn);
+    moveBody.append(addRow);
+  }
+  moveWrap.append(moveBody);
+  card.append(moveWrap);
   return card;
 }
 
@@ -285,6 +356,7 @@ function fillBoxPicker() {
 export async function loadParty() {
   const body = $('#partyBody');
   body.innerHTML = '';
+  await ensureKindOptions('moves');
   const { party } = await api('/api/party');
   const pc = el('div', 'card');
   const ph = el('h3', 'flexhead', `Party (${party.length})`);

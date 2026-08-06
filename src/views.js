@@ -183,6 +183,8 @@ function pokemon(mon, path) {
     ppup: num(ivar(m, '@ppup')),
     idPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@id' }],
     ppPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@pp' }],
+    ppupPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@ppup' }],
+    slot: i,
   })).filter((m) => m.id);
 
   const d = describe(mon);

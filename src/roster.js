@@ -8,9 +8,10 @@
 import {
   RArray, jsToStr, strToJs, getIvar as ivar, setIvar,
 } from './marshal.js';
-import { makePokemon } from './create.js';
+import { makePokemon, newMove } from './create.js';
 import { nameOf } from './labels.js';
-import { movePP } from './gamedata.js';
+import { movePP, moveData, movesAtLevel, speciesData } from './gamedata.js';
+import { levelFromExperience } from './expTable.js';
 
 export const PARTY_MAX = 6;
 export const BOX_SIZE = 30;
@@ -141,14 +142,74 @@ export function healParty(save) {
     setIvar(mon, '@hp', ivar(mon, '@totalhp') ?? 0);
     setIvar(mon, '@status', 0);
     setIvar(mon, '@statusCount', 0);
-    for (const m of ivar(mon, '@moves')?.items || []) {
-      const id = ivar(m, '@id');
-      if (!id) continue;
-      setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
-    }
+    restoreMovePP(mon);
     healed++;
   }
   return { healed };
+}
+
+function requirePokemon(mon) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+}
+
+/**
+ * Learn a move: fills the first empty (id 0) slot in @moves, or appends one if
+ * the array holds fewer than four slots - mirrors how the game always keeps
+ * four PBMove slots, using id 0 for "no move".
+ */
+export function learnMove(mon, moveId) {
+  requirePokemon(mon);
+  const id = Math.floor(Number(moveId));
+  if (!moveData(id)) throw new Error(`move ${moveId} does not exist`);
+  const moves = ivar(mon, '@moves')?.items || [];
+  const empty = moves.find((m) => !ivar(m, '@id'));
+  if (empty) {
+    setIvar(empty, '@id', id);
+    setIvar(empty, '@pp', movePP(id));
+    setIvar(empty, '@ppup', 0);
+  } else if (moves.length < 4) {
+    moves.push(newMove(id));
+    setIvar(mon, '@moves', RArray(moves));
+  } else {
+    throw new Error('this Pokémon already knows four moves');
+  }
+  return id;
+}
+
+/** Forget a move: clears the slot back to id 0 rather than splicing the array. */
+export function forgetMove(mon, slotIndex) {
+  requirePokemon(mon);
+  const moves = ivar(mon, '@moves')?.items || [];
+  const slot = moves[Math.floor(Number(slotIndex))];
+  if (!slot) throw new Error('no such move slot');
+  const id = ivar(slot, '@id');
+  setIvar(slot, '@id', 0);
+  setIvar(slot, '@pp', 0);
+  setIvar(slot, '@ppup', 0);
+  return id;
+}
+
+/** Refill one Pokemon's known moves to their max PP (base PP plus PP Ups). */
+export function restoreMovePP(mon) {
+  requirePokemon(mon);
+  for (const m of ivar(mon, '@moves')?.items || []) {
+    const id = ivar(m, '@id');
+    if (!id) continue;
+    setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
+  }
+}
+
+/** Reset a Pokemon's moves to the level-up set for its species and current level. */
+export function relearnMoves(mon) {
+  requirePokemon(mon);
+  const species = ivar(mon, '@species');
+  const level = levelFromExperience(ivar(mon, '@exp') ?? 0, speciesData(species).growthRate);
+  const moveIds = movesAtLevel(species, level);
+  const moves = [];
+  for (let i = 0; i < 4; i++) moves.push(newMove(moveIds[i] || 0));
+  setIvar(mon, '@moves', RArray(moves));
 }
 
 /** Sort a box's occupied slots by species id, compacted to the front. */

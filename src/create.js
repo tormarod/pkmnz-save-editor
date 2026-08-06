@@ -144,7 +144,7 @@ export function removeRibbon(mon, ribbonId) {
 }
 
 /** PBMove.new(moveid) */
-function makeMove(id) {
+export function newMove(id) {
   return RObject('PBMove', [
     ['@pp', id ? movePP(id) : 0],
     ['@id', id],
@@ -206,7 +206,7 @@ export function makePokemon(opts) {
 
   const moveIds = (moves?.length ? moves : movesAtLevel(species, realLevel)).slice(0, 4);
   const moveObjs = [];
-  for (let i = 0; i < 4; i++) moveObjs.push(makeMove(moveIds[i] || 0));
+  for (let i = 0; i < 4; i++) moveObjs.push(newMove(moveIds[i] || 0));
 
   // Ivar order follows the game's initialize so a fresh Pokemon looks native.
   const ivars = [

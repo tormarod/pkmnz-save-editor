@@ -363,6 +363,46 @@ const ROUTES = {
     return { ...r, summary: views.summary(s) };
   },
 
+  '/api/pokemon/moves/learn': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const id = roster.learnMove(mon, Number(b.moveId));
+    state.dirty = true;
+    recordChange(`Taught ${monLabel(mon)} ${nameOf('moves', id) || `move ${id}`}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/forget': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const id = roster.forgetMove(mon, Number(b.slot));
+    state.dirty = true;
+    recordChange(`${monLabel(mon)} forgot ${nameOf('moves', id) || 'a move'}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/restorePP': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.restoreMovePP(mon);
+    state.dirty = true;
+    recordChange(`Restored PP for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/relearn': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.relearnMoves(mon);
+    state.dirty = true;
+    recordChange(`Reset ${monLabel(mon)}'s moves to the level-up set`);
+    return { ok: true };
+  },
+
   '/api/party/heal': () => {
     const s = need();
     pushUndo();
