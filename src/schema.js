@@ -43,7 +43,7 @@ const NATURE_OPTIONS = [NATURAL, ...NATURES.map((n, i) => ({ value: i, label: `$
 export const CLASS_FIELDS = {
   PokeBattle_Trainer: {
     '@name': F('Name'),
-    '@money': F('Money'),
+    '@money': F('Money', { note: 'very large values may not display correctly on the in-game money HUD, which has limited digits' }),
     '@badges': F('Badges', { note: '8 booleans' }),
     '@party': F('Party'),
     '@pokedex': F('Pokedex obtained'),
@@ -56,8 +56,8 @@ export const CLASS_FIELDS = {
     '@expall': F('Exp. All active', { note: 'boolean' }),
     '@seen': F('Pokedex seen', { note: 'one flag per species' }),
     '@owned': F('Pokedex owned', { note: 'one flag per species' }),
-    '@formseen': F('Forms seen'),
-    '@formlastseen': F('Forms last seen'),
+    '@formseen': F('Forms seen', { note: 'bitmask per species: which alternate forms (regional, seasonal, ...) have been seen in the Pokédex' }),
+    '@formlastseen': F('Forms last seen', { note: 'the form index shown by default in the Pokédex entry for each species' }),
     '@shadowcaught': F('Shadow Pokemon caught'),
   },
 
@@ -77,7 +77,7 @@ export const CLASS_FIELDS = {
     '@item': F('Held item', { kind: 'items' }),
     '@moves': F('Moves'),
     '@firstmoves': F('Moves known when caught', { kind: 'moves' }),
-    '@happiness': F('Happiness'),
+    '@happiness': F('Happiness', { range: [0, 255], note: 'friendship, 0-255; drives evolution and some move power' }),
     '@status': F('Status condition', {
       options: OPT([
         [0, '0 - Healthy'], [1, '1 - Asleep'], [2, '2 - Poisoned'], [3, '3 - Burned'],
@@ -104,7 +104,7 @@ export const CLASS_FIELDS = {
     }),
     '@obtainMap': F('Obtained on map', { kind: 'maps' }),
     '@obtainText': F('Obtain text override'),
-    '@obtainLevel': F('Obtained at level'),
+    '@obtainLevel': F('Obtained at level', { range: [1, 100] }),
     '@hatchedMap': F('Hatched on map', { kind: 'maps' }),
     '@language': F('Language'),
     '@abilityflag': F('Forced ability', {
@@ -113,7 +113,10 @@ export const CLASS_FIELDS = {
     '@genderflag': F('Forced gender', {
       options: [NATURAL, { value: 0, label: '0 - Male' }, { value: 1, label: '1 - Female' }],
     }),
-    '@natureflag': F('Forced nature', { options: NATURE_OPTIONS }),
+    '@natureflag': F('Forced nature', {
+      options: NATURE_OPTIONS,
+      note: "overrides the nature normally derived from the Pokemon's Personal ID (@personalID % 25)",
+    }),
     '@shinyflag': F('Forced shiny', {
       options: [NATURAL, { value: true, label: 'Force shiny' }, { value: false, label: 'Force not shiny' }],
     }),

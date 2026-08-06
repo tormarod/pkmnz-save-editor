@@ -11,10 +11,13 @@
   <h1>Pokémon Z <span>save editor</span></h1>
   <div class="openbar">
     <span id="openName" class="openname">no file open</span>
+    <button id="undo" class="ghost hidden" disabled title="Undo the last edit (Ctrl+Z)">↶</button>
+    <button id="redo" class="ghost hidden" disabled title="Redo (Ctrl+Y)">↷</button>
     <button id="pick" class="ghost">Open a save…</button>
     <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
     <button id="write" class="primary hidden" disabled>Download</button>
     <span id="dirty" class="dirty hidden">unsaved edits</span>
+    <button id="themeToggle" class="ghost" title="Toggle light/dark theme">🌙</button>
   </div>
 </header>
 
@@ -24,6 +27,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <section id="dropzone" class="dropzone">
+  <p class="dz-intro">
+    A save editor for the <strong>Pokémon Z</strong> fangame: open a save file to view and
+    edit your trainer, party, boxes, bag, and every variable and switch the game tracks —
+    level up a Pokémon, fix its IVs, add items, and more — then download the edited file
+    and copy it back over your real save.
+  </p>
   <h2>Drop a save file here</h2>
   <p>or <button id="pick2" class="linkish">choose one</button></p>
   <p class="dz-note">
@@ -113,12 +122,14 @@
         <label>Ability
           <select id="addAbility"><option value="">Default</option><option value="0">First</option><option value="1">Second</option><option value="2">Hidden</option></select>
         </label>
-        <label class="wide">IVs
+        <label class="wide">IVs <span class="fieldhint">(0–31 each)</span>
           <span class="statrow" id="addIVs"></span>
           <button type="button" id="ivMax" class="tiny">Max</button>
           <button type="button" id="ivRandom" class="tiny">Random</button>
         </label>
-        <label class="wide">EVs <span class="statrow" id="addEVs"></span></label>
+        <label class="wide">EVs <span class="fieldhint">(0–252 each, 510 total)</span>
+          <span class="statrow" id="addEVs"></span>
+        </label>
       </div>
       <p class="hint" id="addPreview"></p>
       <button id="addGo" class="primary">Add to save</button>

@@ -63,10 +63,16 @@ try {
 
   const browser = await chromium.launch();
   const page = await browser.newPage();
+  // Species/item sprites (see src/sprites.js) are a best-effort fetch against
+  // a public CDN: this fangame has custom species/items the CDN never has,
+  // and the UI already handles a missing sprite by just not showing one.
+  // Don't let those expected misses fail a test that's checking the app's
+  // own code, not a third party's uptime.
+  const isSpriteRequest = (url) => url.includes('raw.githubusercontent.com/PokeAPI/sprites');
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', (e) => consoleErrors.push(String(e)));
-  page.on('requestfailed', (r) => failedRequests.push(r.url()));
-  page.on('response', (r) => { if (r.status() >= 400) failedRequests.push(`${r.status()} ${r.url()}`); });
+  page.on('requestfailed', (r) => { if (!isSpriteRequest(r.url())) failedRequests.push(r.url()); });
+  page.on('response', (r) => { if (r.status() >= 400 && !isSpriteRequest(r.url())) failedRequests.push(`${r.status()} ${r.url()}`); });
 
   console.log(`\nloading http://127.0.0.1:${PORT}/${BASE}/\n`);
   await page.goto(`http://127.0.0.1:${PORT}/${BASE}/`, { waitUntil: 'networkidle' });
