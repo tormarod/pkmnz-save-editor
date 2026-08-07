@@ -1,5 +1,8 @@
 name: Deploy to GitHub Pages
 
+# ci.yml runs these same tests on every pull request, so a break is caught
+# there first; they run again here because the deploy is what ships them.
+
 on:
   push:
     branches: [ "main" ]
