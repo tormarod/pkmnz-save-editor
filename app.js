@@ -3,7 +3,6 @@ import { openBytes, restoreDraft } from './src/localApi.js';
 import { labelCounts } from './src/labels.js';
 import { hashBytes, loadDraft, clearDraft } from './src/draftStore.js';
 import { $, el } from './src/ui/dom.js';
-import { initTheme } from './src/ui/theme.js';
 import { openModal, confirmModal, trapFocus } from './src/ui/modal.js';
 import {
   api, dirty, setDirty, refreshUndoButtons, onRecalculated, onChangesChanged, toast,
@@ -18,49 +17,71 @@ import { loadBag, initBagAddForm } from './src/ui/tabs/bag.js';
 import { loadParty, initAddForm } from './src/ui/tabs/party.js';
 import { loadTree } from './src/ui/tabs/rawTree.js';
 
-initTheme();
-
 // --- summary -------------------------------------------------------------------
+// A band of scalar stats under the header, then one line about which file the
+// game will actually write this save back to. The filename itself lives in the
+// header chip, so it isn't repeated as a stat here.
+
+/** A <b>-highlighted sentence, from alternating plain/bold fragments. */
+function sentence(...parts) {
+  const p = el('p');
+  parts.forEach((text, i) => p.append(i % 2 ? el('b', null, text) : document.createTextNode(text)));
+  return p;
+}
+
+/** The slot number the filename implies: Game.rxdata is slot 0, Game_2.rxdata is 2. */
+function slotForFile(file) {
+  return file === 'Game.rxdata' ? 0 : Number(file.match(/_(\d+)\.rxdata$/i)?.[1] ?? NaN);
+}
 
 function renderSummary(s) {
   const box = $('#summary');
   box.innerHTML = '';
   if (!s) return;
-  const item = (label, val, flag) => {
-    const d = el('div');
-    d.append(el('dt', null, label), el('dd', flag ? 'flag' : null, val ?? '—'));
-    return d;
-  };
-  box.append(
-    item('File', s.file),
-    item('Slot (var 99)', s.slot),
-    item('Writes back to', s.expectedFile, s.slotMismatch),
-    item('Trainer', s.trainerName),
-    item('Money', s.money?.toLocaleString()),
-    item('Badges', `${s.badges}/8`),
-    item('Party', s.partyCount),
-    item('Play time', s.playTime),
-    item('Location', s.mapName || `map ${s.mapId}`),
-    item('Times saved', s.saveCount),
-  );
 
-  const banner = $('#banner');
+  const stats = el('div', 'summary-stats');
+  const item = (label, val) => {
+    const d = el('div');
+    d.append(el('dt', 'card-kicker', label), el('dd', null, val ?? '—'));
+    stats.append(d);
+  };
+  item('Trainer', s.trainerName);
+  item('Money', s.money?.toLocaleString());
+  item('Badges', `${s.badges}/8`);
+  item('Party', s.partyCount);
+  item('Play time', s.playTime);
+  item('Location', s.mapName || `map ${s.mapId}`);
+  item('Times saved', s.saveCount);
+  box.append(stats);
+
+  // Shown either way: "the slot matches" is as worth knowing as the warning,
+  // and it's the only place the save-slot mechanic gets explained.
+  const note = el('div', 'summary-note');
+  const wanted = slotForFile(s.file);
   if (s.slotMismatch) {
-    banner.textContent =
-      `Slot mismatch: this file is named ${s.file}, but variable 99 is ${s.slot}, ` +
-      `so the game will write it back to ${s.expectedFile}. ` +
-      `Set variable 99 to ${s.file === 'Game.rxdata' ? '0' : s.file.match(/\d+/)?.[0]} to match the filename.`;
-    banner.classList.remove('hidden');
+    note.append(el('span', 'tag tag-outline', 'Slot mismatch'));
+    note.append(sentence(
+      'This file is named ', s.file, ', but variable 99 is ', String(s.slot),
+      ', so the game will write it back to ', s.expectedFile,
+      Number.isNaN(wanted) ? '.' : `. Set variable 99 to ${wanted} to match the filename.`,
+    ));
   } else {
-    banner.classList.add('hidden');
+    note.append(el('span', 'tag tag-neutral', 'Slot matches'));
+    note.append(sentence(
+      'This file is named ', s.file, ', and variable 99 is ', String(s.slot),
+      ', so the game will write it back to ', s.expectedFile, ' — no action needed.',
+    ));
   }
+  box.append(note);
 }
 
-// --- persistent change panel -----------------------------------------------
-// Always-available view of state.changes (not just at download time), with a
-// per-entry Revert: a field edit reverts exactly on its own; a structural
-// entry (add/remove/move/bulk action) rewinds to the snapshot from just before
-// it, which also drops any later changes - confirmed with the user first.
+// --- change list -------------------------------------------------------------
+// Always-available view of state.changes (not just at download time), behind a
+// "Changes (n)" header button so it doesn't sit between the summary and the
+// tabs. Each entry has its own Revert: a field edit reverts exactly on its own;
+// a structural entry (add/remove/move/bulk action) rewinds to the snapshot from
+// just before it, which also drops any later changes - confirmed with the user
+// first.
 
 async function revertChange(entry, changes) {
   const idx = changes.indexOf(entry);
@@ -81,32 +102,48 @@ async function revertChange(entry, changes) {
   } catch (e) { toast(e.message, true); }
 }
 
-function renderChangesPanel(changes) {
-  const panel = $('#changesPanel');
-  const list = $('#changesList');
-  list.innerHTML = '';
+let latestChanges = [];
+function trackChanges(changes) {
+  latestChanges = changes;
   $('#changesCount').textContent = `(${changes.length})`;
-  if (!changes.length) {
-    list.append(el('li', null, 'No changes yet.'));
-    return;
-  }
-  for (const c of changes) {
-    const li = el('li');
-    li.append(el('span', 'cdesc', c.desc));
-    if (c.before !== undefined) li.append(el('span', 'cdiff', `${c.before} → ${c.after}`));
-    const revert = el('button', 'tiny danger', 'Revert');
-    revert.onclick = () => revertChange(c, changes);
-    li.append(revert);
-    list.append(li);
-  }
 }
-onChangesChanged(renderChangesPanel);
+onChangesChanged(trackChanges);
+
+function openChanges() {
+  const changes = latestChanges;
+  const { box, close } = openModal({ onClose: () => {} });
+  box.append(el('h3', null, changes.length
+    ? `${changes.length} change${changes.length === 1 ? '' : 's'} so far`
+    : 'No changes yet'));
+  if (!changes.length) {
+    box.append(el('p', null, 'Every edit you make shows up here, and can be reverted on its own.'));
+  } else {
+    const list = el('ul', 'changelist');
+    for (const c of changes) {
+      const li = el('li');
+      li.append(el('span', 'cdesc', c.desc));
+      if (c.before !== undefined) li.append(el('span', 'cdiff', `${c.before} → ${c.after}`));
+      const revert = el('button', 'tiny danger', 'Revert');
+      revert.onclick = async () => { close(); await revertChange(c, changes); };
+      li.append(revert);
+      list.append(li);
+    }
+    box.append(list);
+  }
+  const actions = el('div', 'modal-actions');
+  const done = el('button', 'ghost', 'Close');
+  done.onclick = () => close();
+  actions.append(done);
+  box.append(actions);
+  done.focus();
+}
+$('#changesOpen').onclick = openChanges;
 
 // --- wiring ----------------------------------------------------------------
 
 const LOADERS = {
-  variables: makeIndexedTab('variables', '#varList', '#varFilter', '#varOnlySet'),
-  switches: makeIndexedTab('switches', '#swList', '#swFilter', '#swOnlySet'),
+  variables: makeIndexedTab('variables', '#varList', '#varFilter', '#varOnlySet', '#varCount'),
+  switches: makeIndexedTab('switches', '#swList', '#swFilter', '#swOnlySet', '#swCount'),
   trainer: loadTrainer,
   world: loadWorld,
   options: loadOptions,
@@ -192,7 +229,7 @@ async function buildSearchIndex() {
         await showTab('variables');
         $('#varFilter').value = String(v.index);
         $('#varFilter').dispatchEvent(new Event('input'));
-        highlightRow([...document.querySelectorAll('#varList .row')].find((r) => r.querySelector('.idx')?.textContent === String(v.index)));
+        highlightRow([...document.querySelectorAll('#varList tbody tr')].find((r) => r.querySelector('.idx')?.textContent === String(v.index)));
       },
     });
   }
@@ -204,7 +241,7 @@ async function buildSearchIndex() {
         await showTab('switches');
         $('#swFilter').value = String(s.index);
         $('#swFilter').dispatchEvent(new Event('input'));
-        highlightRow([...document.querySelectorAll('#swList .row')].find((r) => r.querySelector('.idx')?.textContent === String(s.index)));
+        highlightRow([...document.querySelectorAll('#swList tbody tr')].find((r) => r.querySelector('.idx')?.textContent === String(s.index)));
       },
     });
   }
@@ -391,17 +428,16 @@ async function openFile(file) {
     const summary = openBytes(file.name, bytes);
     renderSummary(summary);
     $('#openName').textContent = file.name;
-    $('#dropzone').classList.add('hidden');
-    $('#summary').classList.remove('hidden');
-    $('#changesPanel').classList.remove('hidden');
+    // The onboarding block (wordmark, dropzone, blurb) is the whole empty
+    // state — once a file is open the header/summary/tabs replace it.
+    $('#onboarding').classList.add('hidden');
+    $('#openName').classList.remove('hidden');
+    $('#summaryWrap').classList.remove('hidden');
     document.querySelector('nav.tabs').classList.remove('hidden');
     document.querySelector('main').classList.remove('hidden');
-    $('#reload').classList.remove('hidden');
-    $('#backup').classList.remove('hidden');
-    $('#write').classList.remove('hidden');
-    $('#undo').classList.remove('hidden');
-    $('#redo').classList.remove('hidden');
-    $('#searchOpen').classList.remove('hidden');
+    for (const id of ['#reload', '#backup', '#write', '#undo', '#redo', '#searchOpen', '#changesOpen']) {
+      $(id).classList.remove('hidden');
+    }
     setDirty(false);
     await refreshAll();
     await refreshUndoButtons();
@@ -484,7 +520,7 @@ $('#write').onclick = async () => {
     setDirty(false);
     await discardDraft();
     document.querySelectorAll('.changed').forEach((n) => n.classList.remove('changed'));
-    renderChangesPanel([]);
+    trackChanges([]);
     toast(`Downloaded ${name} — if your browser saved it as "${name} (1)" or similar, rename it back to "${name}" before copying it over your save`);
   } catch (e) { toast(e.message, true); }
 };

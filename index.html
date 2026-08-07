@@ -4,22 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pokemon Z save editor</title>
+<link rel="stylesheet" href="./src/nocturne.css">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<header>
-  <h1>Pokémon Z <span>save editor</span></h1>
+<header class="nav">
+  <span class="nav-brand">Pokémon Z <span>save editor</span></span>
+  <span id="openName" class="openname hidden"></span>
   <div class="openbar">
-    <span id="openName" class="openname">no file open</span>
-    <button id="undo" class="ghost hidden" disabled title="Undo the last edit (Ctrl+Z)">↶</button>
-    <button id="redo" class="ghost hidden" disabled title="Redo (Ctrl+Y)">↷</button>
-    <button id="searchOpen" class="ghost hidden" title="Search everything (Ctrl+K)">🔎 Search</button>
+    <span id="dirty" class="tag tag-outline hidden">unsaved edits</span>
+    <button id="changesOpen" class="ghost hidden" title="Everything you've changed so far">Changes <span id="changesCount" class="fieldhint">(0)</span></button>
+    <button id="searchOpen" class="ghost icon hidden" title="Search everything (Ctrl+K)" aria-label="Search">
+      <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><circle cx="112" cy="112" r="72"/><line x1="164" y1="164" x2="216" y2="216" stroke-linecap="round"/></svg>
+    </button>
+    <button id="undo" class="ghost icon hidden" disabled title="Undo the last edit (Ctrl+Z)" aria-label="Undo">
+      <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M64 96 L32 96 L32 64" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 96 C64 40 176 32 208 96 C232 144 200 200 144 200 L104 200" stroke-linecap="round"/></svg>
+    </button>
+    <button id="redo" class="ghost icon hidden" disabled title="Redo (Ctrl+Y)" aria-label="Redo">
+      <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M192 96 L224 96 L224 64" stroke-linecap="round" stroke-linejoin="round"/><path d="M224 96 C192 40 80 32 48 96 C24 144 56 200 112 200 L152 200" stroke-linecap="round"/></svg>
+    </button>
     <button id="pick" class="ghost">Open a save…</button>
     <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
     <button id="backup" class="ghost hidden" title="Download the file exactly as you opened it, with no edits">Download original</button>
-    <button id="write" class="primary hidden" disabled>Download</button>
-    <span id="dirty" class="dirty hidden">unsaved edits</span>
-    <button id="themeToggle" class="ghost" title="Toggle light/dark theme">🌙</button>
+    <button id="write" class="primary hidden" disabled>
+      Download
+      <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M128 40 L128 160" stroke-linecap="round"/><path d="M80 112 L128 160 L176 112" stroke-linecap="round" stroke-linejoin="round"/><path d="M48 200 L208 200" stroke-linecap="round"/></svg>
+    </button>
   </div>
 </header>
 
@@ -35,32 +45,33 @@
   </div>
 </div>
 
-<section id="dropzone" class="dropzone">
+<div id="onboarding">
+  <p class="dz-page-title">Pokémon Z <span>save editor</span></p>
+  <section id="dropzone" class="dropzone">
+    <svg class="dz-icon" width="40" height="40" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="10"><rect x="40" y="96" width="176" height="120" rx="12"/><path d="M40 96 L92 40 L164 40 L216 96" stroke-linecap="round" stroke-linejoin="round"/><line x1="128" y1="128" x2="128" y2="180" stroke-linecap="round"/><polyline points="104,156 128,180 152,156" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2>Drop a save file here</h2>
+    <p>or <button id="pick2" class="linkish">choose one</button></p>
+    <p class="dz-note">
+      Saves normally live in <code>%USERPROFILE%\Saved Games\Pokemon Z</code> —
+      <code>Game.rxdata</code>, <code>Game_2.rxdata</code>, and so on.
+    </p>
+    <p class="dz-note">
+      Everything runs in your browser. The file is never uploaded, and this page
+      only ever sees what you hand it.
+    </p>
+    <p id="dataStatus" class="dz-note"></p>
+  </section>
   <p class="dz-intro">
     A save editor for the <strong>Pokémon Z</strong> fangame: open a save file to view and
     edit your trainer, party, boxes, bag, and every variable and switch the game tracks —
     level up a Pokémon, fix its IVs, add items, and more — then download the edited file
     and copy it back over your real save.
   </p>
-  <h2>Drop a save file here</h2>
-  <p>or <button id="pick2" class="linkish">choose one</button></p>
-  <p class="dz-note">
-    Saves normally live in <code>%USERPROFILE%\Saved Games\Pokemon Z</code> —
-    <code>Game.rxdata</code>, <code>Game_2.rxdata</code>, and so on.
-  </p>
-  <p class="dz-note">
-    Everything runs in your browser. The file is never uploaded, and this page
-    only ever sees what you hand it.
-  </p>
-  <p id="dataStatus" class="dz-note"></p>
-</section>
+</div>
 
-<section id="summary" class="summary hidden"></section>
-
-<details id="changesPanel" class="changespanel hidden">
-  <summary>Changes <span id="changesCount" class="fieldhint"></span></summary>
-  <ul id="changesList" class="changelist"></ul>
-</details>
+<div id="summaryWrap" class="summarywrap hidden">
+  <section id="summary" class="summary"></section>
+</div>
 
 <nav class="tabs hidden">
   <button data-tab="variables" class="active">Variables</button>
@@ -76,37 +87,38 @@
 
 <main class="hidden">
   <div class="panel" data-panel="variables">
+    <p class="hint">All 1000 variables the game tracks, named from the RPG Maker project. Most stay at their default — search, or leave "only named" on to skip the noise.</p>
     <div class="controls">
       <input type="search" id="varFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="varOnlySet"> Only named or non-default</label>
+      <label class="check"><input type="checkbox" id="varOnlySet" checked><span class="switchbtn"></span> Only named or non-default</label>
+      <span id="varCount" class="count"></span>
     </div>
-    <div id="varList" class="rows"></div>
+    <div id="varList"></div>
   </div>
 
   <div class="panel hidden" data-panel="switches">
+    <p class="hint">All 1000 switches — on/off flags the game's events set. A switch that's never been touched reads as off.</p>
     <div class="controls">
       <input type="search" id="swFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="swOnlySet"> Only named or non-default</label>
+      <label class="check"><input type="checkbox" id="swOnlySet" checked><span class="switchbtn"></span> Only named or non-default</label>
+      <span id="swCount" class="count"></span>
     </div>
-    <div id="swList" class="rows"></div>
+    <div id="swList"></div>
   </div>
 
   <div class="panel hidden" data-panel="trainer"><div id="trainerBody"></div></div>
   <div class="panel hidden" data-panel="world"><div id="worldBody"></div></div>
   <div class="panel hidden" data-panel="options"><div id="optionsBody"></div></div>
   <div class="panel hidden" data-panel="dex">
-    <div class="card">
-      <h3 class="flexhead">Pokédex <small id="dexCount"></small>
-        <span class="spacer"></span>
-        <button id="dexMarkSeen" class="tiny">Mark all seen</button>
-        <button id="dexMarkOwned" class="tiny">Mark all owned</button>
-      </h3>
-    </div>
+    <p class="hint">Which species this save has seen and owned. Marking a species seen or owned here only changes the Pokédex record, not what you actually have.</p>
     <div class="controls">
       <input type="search" id="dexFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="dexOnlyMissing"> Only missing seen or owned</label>
+      <label class="check"><input type="checkbox" id="dexOnlyMissing"><span class="switchbtn"></span> Only missing seen or owned</label>
+      <span id="dexCount" class="count"></span>
+      <button id="dexMarkSeen" class="tiny">Mark all seen</button>
+      <button id="dexMarkOwned" class="tiny">Mark all owned</button>
     </div>
-    <div id="dexList" class="rows"></div>
+    <div id="dexList"></div>
   </div>
   <div class="panel hidden" data-panel="bag">
     <details id="addItemBox" class="card addcard">
@@ -118,8 +130,10 @@
         <label>Quantity <input type="number" id="addItemQty" value="1" min="1" max="999"></label>
       </div>
       <p class="hint" id="addItemPreview"></p>
-      <button id="addItemGo" class="primary">Add to bag</button>
-      <span class="note">Goes into the pocket the game itself uses for that item.</span>
+      <div class="monactions">
+        <button id="addItemGo" class="primary">Add to bag</button>
+        <span class="note">Goes into the pocket the game itself uses for that item.</span>
+      </div>
     </details>
     <div id="bagBody"></div>
   </div>
@@ -157,30 +171,32 @@
         </label>
         <label class="wide">IVs <span class="fieldhint">(0–31 each)</span>
           <span class="statrow" id="addIVs"></span>
-          <button type="button" id="ivMax" class="tiny">Max</button>
-          <button type="button" id="ivRandom" class="tiny">Random</button>
+          <span class="monactions">
+            <button type="button" id="ivMax" class="tiny">Max</button>
+            <button type="button" id="ivRandom" class="tiny">Random</button>
+          </span>
         </label>
         <label class="wide">EVs <span class="fieldhint">(0–252 each, 510 total)</span>
           <span class="statrow" id="addEVs"></span>
         </label>
-        <label class="check"><input type="checkbox" id="addEgg"> Create as an egg</label>
+        <label class="check"><input type="checkbox" id="addEgg"><span class="switchbtn"></span> Create as an egg</label>
       </div>
       <p class="hint" id="addPreview"></p>
-      <button id="addGo" class="primary">Add to save</button>
-      <span class="note">Moves default to the level-up set the game would give it. Stats are computed with the game's own formulas.</span>
-      <br>
-      <span class="note">Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</span>
+      <div class="monactions">
+        <button id="addGo" class="primary">Add to save</button>
+      </div>
+      <p class="note">Moves default to the level-up set the game would give it, and stats are computed with the game's own formulas. Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</p>
     </details>
     <div class="controls">
       <input type="search" id="partyFilter" placeholder="Filter by species, nickname, held item or a known move…">
-      <label class="check"><input type="checkbox" id="partyShinyOnly"> Shiny only</label>
-      <label>Level <input type="number" id="partyLevelMin" min="1" max="100" placeholder="min" style="width:64px"> – <input type="number" id="partyLevelMax" min="1" max="100" placeholder="max" style="width:64px"></label>
+      <label class="check"><input type="checkbox" id="partyShinyOnly"><span class="switchbtn"></span> Shiny only</label>
+      <label>Level <input type="number" id="partyLevelMin" min="1" max="100" placeholder="min" style="width:70px"> – <input type="number" id="partyLevelMax" min="1" max="100" placeholder="max" style="width:70px"></label>
     </div>
     <div id="partyBody"></div>
   </div>
 
   <div class="panel hidden" data-panel="raw">
-    <p class="hint">Every one of the 15 Marshal streams, exactly as stored. Known fields are labeled; anything else shows its Ruby type.</p>
+    <p class="hint">Every one of the 15 Marshal streams a save is made of, exactly as stored. Known fields are labeled; anything else shows its Ruby type.</p>
     <div id="tree" class="tree"></div>
   </div>
 </main>

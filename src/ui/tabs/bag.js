@@ -58,10 +58,13 @@ export async function loadBag() {
     if (!p.items.length) {
       card.append(el('div', 'empty', 'empty'));
     } else {
-      const table = el('table', 'items');
+      const table = el('table', 'table');
       const head = el('tr');
       for (const c of ['', 'ID', 'Item', 'Quantity', '']) head.append(el('th', null, c));
-      table.append(head);
+      const thead = el('thead');
+      thead.append(head);
+      table.append(thead);
+      const tbody = el('tbody');
       for (const it of p.items) {
         const tr = el('tr');
         tr.dataset.itemId = String(it.id);
@@ -75,7 +78,7 @@ export async function loadBag() {
         qc.append(boundInput(tr, {
           type: 'int', value: it.qty, path: it.qtyPath, scalar: true, label: `${it.name || 'item'} quantity`,
         }));
-        const rmc = el('td');
+        const rmc = el('td', 'actions');
         const rmBtn = el('button', 'tiny danger', 'Remove');
         rmBtn.onclick = async () => {
           try {
@@ -88,8 +91,9 @@ export async function loadBag() {
         };
         rmc.append(rmBtn);
         tr.append(iconc, idc, el('td', null, it.name || '(unknown)'), qc, rmc);
-        table.append(tr);
+        tbody.append(tr);
       }
+      table.append(tbody);
       card.append(table);
     }
     body.append(card);

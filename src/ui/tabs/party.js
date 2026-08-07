@@ -17,26 +17,36 @@ let speciesOpts = [];
 function monCard(mon, title, loc) {
   const monName = mon.nickname || mon.speciesName || `species ${mon.species}`;
   const card = el('div', 'card');
-  const h = el('h3', 'monhead');
+
+  // Header: sprite, who this is, one line of derived facts, then level/HP as
+  // tags on the right. Everything you can *do* to it lives in the action row
+  // further down, so the identity line stays readable.
+  const h = el('div', 'monhead');
   attachSprite(h, speciesSpriteUrl(mon.species), mon.speciesName, 'sprite');
-  h.append(document.createTextNode(`${title}  ${mon.speciesName || `species ${mon.species}`}`));
+  const ident = el('div', 'monident');
+  const nameLine = el('div', 'monhead-name', `${title}  `);
+  nameLine.append(el('span', null, mon.speciesName || `species ${mon.species}`));
+  ident.append(nameLine);
+
+  const d = mon.describe || {};
   const bits = [];
   if (mon.nickname && mon.nickname !== mon.speciesName) bits.push(`"${mon.nickname}"`);
   if (mon.egg) bits.push('egg');
+  if (d.shiny) bits.push('✨ Shiny');
+  if (d.gender) bits.push(d.gender);
+  if (d.nature) bits.push(d.nature);
+  if (d.abilityName) bits.push(d.abilityName);
   if (mon.itemName) bits.push(`holding ${mon.itemName}`);
-  bits.push(`HP ${mon.hp}/${mon.totalhp}`);
-  h.append(el('small', null, bits.join(' · ')));
+  if (bits.length) ident.append(el('div', 'monmeta', bits.join(' · ')));
+  h.append(ident);
 
-  const d = mon.describe || {};
-  const dbits = [];
-  if (d.gender) dbits.push(d.gender);
-  if (d.nature) dbits.push(d.nature);
-  if (d.shiny) dbits.push('✨ Shiny');
-  if (d.abilityName) dbits.push(d.abilityName);
-  if (dbits.length) h.append(el('small', null, dbits.join(' · ')));
+  h.append(el('span', 'spacer'));
+  if (mon.level !== null) h.append(el('span', 'tag tag-accent', `Lv ${mon.level}`));
+  if (mon.totalhp) h.append(el('span', 'tag tag-outline', `HP ${mon.hp}/${mon.totalhp}`));
+  card.append(h);
 
+  const actions = el('div', 'monactions');
   if (loc) {
-    h.append(el('span', 'spacer'));
     let boxSel = null;
     if (loc.where === 'party') {
       const up = el('button', 'tiny', '▲');
@@ -61,12 +71,12 @@ function monCard(mon, title, loc) {
           await loadParty();
         } catch (e) { toast(e.message, true); }
       };
-      h.append(up, down);
-      boxSel = el('select', 'tiny');
+      actions.append(up, down);
+      boxSel = el('select', 'inline');
       for (const b of allBoxes) {
         boxSel.append(new Option(`Box ${b.index + 1}${b.name ? ` "${b.name}"` : ''}`, b.index));
       }
-      h.append(boxSel);
+      actions.append(boxSel);
     }
     const move = el('button', 'tiny', loc.where === 'party' ? 'To box' : 'To party');
     move.onclick = async () => {
@@ -163,7 +173,7 @@ function monCard(mon, title, loc) {
         toast(`Maxed PP Ups for ${monName}`);
       } catch (e) { toast(e.message, true); }
     };
-    h.append(move, maxIVs, recalc, maxEVs, clearEVs, maxHappiness, maxPPUps);
+    actions.append(move, maxIVs, recalc, maxEVs, clearEVs, maxHappiness, maxPPUps);
     if (mon.egg) {
       const hatch = el('button', 'tiny', 'Hatch now');
       hatch.title = 'Instantly finish this egg\'s remaining steps and heal it to full HP';
@@ -176,11 +186,19 @@ function monCard(mon, title, loc) {
           toast(`Hatched ${monName}`);
         } catch (e) { toast(e.message, true); }
       };
-      h.append(hatch);
+      actions.append(hatch);
     }
-    h.append(del);
+    actions.append(del);
+    card.append(actions);
   }
-  card.append(h);
+
+  if (mon.totalhp) {
+    const track = el('div', 'barTrack');
+    const fill = el('div', 'barFill');
+    fill.style.width = `${Math.round((mon.hp / mon.totalhp) * 100)}%`;
+    track.append(fill);
+    card.append(track);
+  }
 
   // The game reads these six straight out of the save, so show what is stored.
   const statLine = el('div', 'statline');
@@ -258,7 +276,7 @@ function monCard(mon, title, loc) {
     if (s.ivar === '@ev') {
       const spread = el('div', 'badges');
       const mkSel = (deflt) => {
-        const sel = el('select', 'tiny');
+        const sel = el('select', 'inline');
         STAT.forEach((name, i) => sel.append(new Option(name, i)));
         sel.value = deflt;
         return sel;
@@ -405,10 +423,13 @@ function monCard(mon, title, loc) {
   }
 
   if (mon.moves.length) {
-    const table = el('table', 'items');
+    const table = el('table', 'table');
     const head = el('tr');
     for (const c of ['Move', 'PP', 'PP Ups', '']) head.append(el('th', null, c));
-    table.append(head);
+    const thead = el('thead');
+    thead.append(head);
+    table.append(thead);
+    const tbody = el('tbody');
     mon.moves.forEach((m) => {
       const tr = el('tr');
       const namec = el('td');
@@ -423,7 +444,7 @@ function monCard(mon, title, loc) {
       ppupc.append(boundInput(tr, {
         type: 'int', value: m.ppup, path: m.ppupPath, scalar: true, range: [0, 3], label: `${monName}: ${m.name || 'move'} PP Ups`,
       }));
-      const rmc = el('td');
+      const rmc = el('td', 'actions');
       const forget = el('button', 'tiny danger', 'Forget');
       forget.onclick = async () => {
         try {
@@ -435,8 +456,9 @@ function monCard(mon, title, loc) {
       };
       rmc.append(forget);
       tr.append(namec, ppc, ppupc, rmc);
-      table.append(tr);
+      tbody.append(tr);
     });
+    table.append(tbody);
     moveBody.append(table);
   }
 
@@ -508,12 +530,16 @@ let partyData = [];
 let boxesData = [];
 const selectedSlot = {}; // box index -> selected slot number, or null
 
-function boxCell(mon, box) {
-  const cell = el('button', 'boxcell');
+function boxItem(mon, box) {
+  const cell = el('button', 'boxitem');
   cell.type = 'button';
-  if (!mon) { cell.disabled = true; return cell; }
   attachSprite(cell, speciesSpriteUrl(mon.species), mon.speciesName, 'sprite');
-  cell.append(el('span', 'boxcelllvl', mon.level ?? ''));
+  const meta = el('div', 'boxitem-meta');
+  meta.append(
+    el('div', 'boxitem-species', mon.nickname || mon.speciesName || 'Pokémon'),
+    el('div', 'boxitem-level', `Lv ${mon.level ?? '?'}`),
+  );
+  cell.append(meta);
   cell.title = `${mon.nickname || mon.speciesName || 'Pokémon'} · Lv.${mon.level ?? '?'}`;
   if (mon.describe?.shiny) cell.classList.add('shiny');
   if (filterActive() && !monMatchesFilter(mon)) cell.classList.add('dim');
@@ -532,7 +558,7 @@ function boxCard(box) {
 
   const nameInp = el('input');
   nameInp.type = 'text';
-  nameInp.className = 'tiny boxname';
+  nameInp.className = 'boxname';
   nameInp.placeholder = '(unnamed)';
   nameInp.value = box.name || '';
   nameInp.title = 'Box name';
@@ -548,7 +574,7 @@ function boxCard(box) {
 
   const bgInp = el('input');
   bgInp.type = 'number';
-  bgInp.className = 'tiny boxbg';
+  bgInp.className = 'boxbg';
   bgInp.min = 0;
   bgInp.title = 'Box wallpaper id';
   bgInp.value = box.background ?? 0;
@@ -579,10 +605,14 @@ function boxCard(box) {
   }
   card.append(bh);
 
-  const grid = el('div', 'boxgrid');
   const bySlot = new Map(box.pokemon.map((m) => [m.slot, m]));
-  for (let i = 0; i < box.size; i++) grid.append(boxCell(bySlot.get(i) || null, box));
-  card.append(grid);
+  if (box.pokemon.length) {
+    const list = el('div', 'boxlist');
+    for (const m of [...box.pokemon].sort((a, b) => a.slot - b.slot)) list.append(boxItem(m, box));
+    card.append(list);
+  } else {
+    card.append(el('p', 'boxempty', 'This box is empty.'));
+  }
 
   const selSlot = selectedSlot[box.index];
   const selMon = selSlot === undefined ? null : bySlot.get(selSlot);
@@ -597,11 +627,13 @@ function draw() {
   body.innerHTML = '';
   const active = filterActive();
 
-  const pc = el('div', 'card');
-  const ph = el('h3', 'flexhead', `Party (${partyData.length})`);
+  // The party and boxes headings sit on the page rather than in a card, so the
+  // cards below them read as the contents of each section.
+  const ph = el('div', 'flexhead sectionhead');
+  ph.append(el('h3', null, `Party (${partyData.length})`));
   if (partyData.length) {
     ph.append(el('span', 'spacer'));
-    const heal = el('button', 'tiny', 'Heal party');
+    const heal = el('button', 'ghost', 'Heal party');
     heal.title = 'Restore every party Pokémon to full HP, cure status, and refill move PP';
     heal.onclick = async () => {
       try {
@@ -620,8 +652,9 @@ function draw() {
     candyLevel.max = 100;
     candyLevel.value = 100;
     candyLevel.title = 'Level to set the whole party to';
-    candyLevel.style.width = '55px';
-    const candy = el('button', 'tiny', 'Rare candy party to level');
+    candyLevel.className = 'inline';
+    candyLevel.style.width = '64px';
+    const candy = el('button', 'ghost', 'Rare candy party to level');
     candy.title = 'Set every party Pokémon to this level and recompute stats';
     candy.onclick = async () => {
       try {
@@ -634,19 +667,18 @@ function draw() {
     };
     ph.append(candy, candyLevel);
   }
-  pc.append(ph);
-  body.append(pc);
-  if (!partyData.length) pc.append(el('div', 'empty', 'The party is empty.'));
+  body.append(ph);
+  if (!partyData.length) body.append(el('p', 'empty', 'The party is empty.'));
   const shown = partyData.filter((m) => m && (!active || monMatchesFilter(m)));
-  if (active && partyData.length && !shown.length) pc.append(el('div', 'empty', 'No party Pokémon match the filter.'));
+  if (active && partyData.length && !shown.length) body.append(el('p', 'empty', 'No party Pokémon match the filter.'));
   partyData.forEach((m, i) => {
     if (!m || (active && !monMatchesFilter(m))) return;
     body.append(monCard(m, `Party ${i + 1}`, { where: 'party', index: i, total: partyData.length }));
   });
 
-  const bc = el('div', 'card');
-  bc.append(el('h3', null, `Boxes (${boxesData.filter((b) => b.count > 0).length} of ${boxesData.length} in use)`));
-  body.append(bc);
+  const bh = el('div', 'flexhead sectionhead');
+  bh.append(el('h3', null, `Boxes (${boxesData.filter((b) => b.count > 0).length} of ${boxesData.length} in use)`));
+  body.append(bh);
   for (const b of boxesData) body.append(boxCard(b));
 }
 
