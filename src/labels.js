@@ -18,15 +18,19 @@ const TABLES = ['variables', 'switches', 'maps', 'species', 'items', 'moves', 'a
 const RESERVED_RE = /^-+\s*RESERVED\s*-+$/i;
 
 /**
- * 'reserved' | 'computed' | null - what kind of non-functional name (if any)
- * this variable/switch has, so the UI can flag it instead of implying it is
- * an ordinary, game-read toggle.
+ * Tags for one variable/switch: 'script', 'dead', 'wide', 'inverted',
+ * 'reserved', 'computed'. The bundle works these out at build time from the
+ * game's own scripts and events; the name-based fallback is here so a bundle
+ * built before annotations still flags the two obvious cases.
  */
-export function special(name) {
-  if (!name) return null;
-  if (RESERVED_RE.test(name)) return 'reserved';
-  if (name.startsWith('s:')) return 'computed';
-  return null;
+export function tagsOf(kind, id) {
+  const e = data()[kind]?.[id];
+  if (!e) return [];
+  if (typeof e !== 'string' && e.tag) return e.tag;
+  const name = entryName(e) || '';
+  if (RESERVED_RE.test(name)) return ['reserved'];
+  if (name.startsWith('s:')) return ['computed'];
+  return [];
 }
 
 /** Display name for an entry, whichever shape the table uses. */
@@ -34,6 +38,25 @@ function entryName(e) {
   if (e === undefined || e === null) return null;
   return typeof e === 'string' ? e : e.n || e.i || null;
 }
+
+/**
+ * The whole bundle entry for a variable/switch - `{ n, g, es, en, tag, m, mc }`
+ * - or an empty object. Used by the Game state tab, which needs the group and
+ * the description as well as the name.
+ */
+export function entryOf(kind, id) {
+  const e = data()[kind]?.[id];
+  return e && typeof e === 'object' ? e : {};
+}
+
+/** Group metadata baked into the bundle: `{ key: { es, en, story } }`. */
+export const groupInfo = () => data().groups || {};
+
+/** Group keys in the order the cards should appear. */
+export const groupOrder = () => data().groupOrder || [];
+
+/** Group keys whose cards start expanded. */
+export const groupsOpen = () => data().groupsOpen || [];
 
 export function labels() {
   const d = data();

@@ -1,6 +1,7 @@
 import { loadData } from './src/data.js';
 import { openBytes, restoreDraft } from './src/localApi.js';
 import { labelCounts } from './src/labels.js';
+import { t, pick, lang, setLang } from './src/i18n.js';
 import { hashBytes, loadDraft, clearDraft } from './src/draftStore.js';
 import { $, el } from './src/ui/dom.js';
 import { openModal, confirmModal, trapFocus } from './src/ui/modal.js';
@@ -8,7 +9,7 @@ import {
   api, dirty, setDirty, refreshUndoButtons, onRecalculated, onChangesChanged, toast,
   setCurrentFile, getCurrentFileName, discardDraft, ensureItemOptions, ensureKindOptions,
 } from './src/ui/session.js';
-import { makeIndexedTab } from './src/ui/tabs/indexed.js';
+import { loadGameState, initGameStateTab, revealEntry } from './src/ui/tabs/gameState.js';
 import { loadTrainer } from './src/ui/tabs/trainer.js';
 import { loadWorld } from './src/ui/tabs/world.js';
 import { loadOptions } from './src/ui/tabs/options.js';
@@ -34,7 +35,11 @@ function slotForFile(file) {
   return file === 'Game.rxdata' ? 0 : Number(file.match(/_(\d+)\.rxdata$/i)?.[1] ?? NaN);
 }
 
+// Kept so switching language can redraw the summary without re-reading the save.
+let lastSummary = null;
+
 function renderSummary(s) {
+  lastSummary = s;
   const box = $('#summary');
   box.innerHTML = '';
   if (!s) return;
@@ -45,13 +50,13 @@ function renderSummary(s) {
     d.append(el('dt', 'card-kicker', label), el('dd', null, val ?? '—'));
     stats.append(d);
   };
-  item('Trainer', s.trainerName);
-  item('Money', s.money?.toLocaleString());
-  item('Badges', `${s.badges}/8`);
-  item('Party', s.partyCount);
-  item('Play time', s.playTime);
-  item('Location', s.mapName || `map ${s.mapId}`);
-  item('Times saved', s.saveCount);
+  item(t('summary.trainer'), s.trainerName);
+  item(t('summary.money'), s.money?.toLocaleString());
+  item(t('summary.badges'), `${s.badges}/8`);
+  item(t('summary.party'), s.partyCount);
+  item(t('summary.playTime'), s.playTime);
+  item(t('summary.location'), s.mapName || t('summary.map', { id: s.mapId }));
+  item(t('summary.timesSaved'), s.saveCount);
   box.append(stats);
 
   // Shown either way: "the slot matches" is as worth knowing as the warning,
@@ -59,17 +64,17 @@ function renderSummary(s) {
   const note = el('div', 'summary-note');
   const wanted = slotForFile(s.file);
   if (s.slotMismatch) {
-    note.append(el('span', 'tag tag-outline', 'Slot mismatch'));
+    note.append(el('span', 'tag tag-outline', t('summary.slotMismatch')));
     note.append(sentence(
-      'This file is named ', s.file, ', but variable 99 is ', String(s.slot),
-      ', so the game will write it back to ', s.expectedFile,
-      Number.isNaN(wanted) ? '.' : `. Set variable 99 to ${wanted} to match the filename.`,
+      t('summary.namedFile'), s.file, t('summary.butVar99'), String(s.slot),
+      t('summary.writeBack'), s.expectedFile,
+      Number.isNaN(wanted) ? '.' : t('summary.setVar99', { slot: wanted }),
     ));
   } else {
-    note.append(el('span', 'tag tag-neutral', 'Slot matches'));
+    note.append(el('span', 'tag tag-neutral', t('summary.slotMatches')));
     note.append(sentence(
-      'This file is named ', s.file, ', and variable 99 is ', String(s.slot),
-      ', so the game will write it back to ', s.expectedFile, ' — no action needed.',
+      t('summary.namedFile'), s.file, t('summary.andVar99'), String(s.slot),
+      t('summary.writeBack'), s.expectedFile, t('summary.noAction'),
     ));
   }
   box.append(note);
@@ -142,8 +147,7 @@ $('#changesOpen').onclick = openChanges;
 // --- wiring ----------------------------------------------------------------
 
 const LOADERS = {
-  variables: makeIndexedTab('variables', '#varList', '#varFilter', '#varOnlySet', '#varCount'),
-  switches: makeIndexedTab('switches', '#swList', '#swFilter', '#swOnlySet', '#swCount'),
+  gamestate: async () => { initGameStateTab(); await loadGameState(); },
   trainer: loadTrainer,
   world: loadWorld,
   options: loadOptions,
@@ -154,12 +158,12 @@ const LOADERS = {
 };
 
 // Same order as the tab buttons in index.html, for the 1-9 shortcut.
-const TAB_ORDER = ['variables', 'switches', 'trainer', 'world', 'options', 'dex', 'bag', 'party', 'raw'];
+const TAB_ORDER = ['gamestate', 'trainer', 'world', 'options', 'dex', 'bag', 'party', 'raw'];
 const FILTER_SEL = {
-  variables: '#varFilter', switches: '#swFilter', dex: '#dexFilter', party: '#partyFilter',
+  gamestate: '#gsFilter', dex: '#dexFilter', party: '#partyFilter',
 };
 
-let current = 'variables';
+let current = 'gamestate';
 const loaded = new Set();
 
 // Editing IVs/EVs/level/species recomputes the Pokemon's cached stats, and
@@ -217,31 +221,26 @@ function jumpToField(tab, containerSel, label) {
 
 const stripId = (label) => label.replace(/^\d+\s*-\s*/, '');
 
+/** The curated label for a game-state row, or null when only a dev name exists. */
+const pickLabel = (r) => pick({ es: r.es, en: r.en })?.n || null;
+
 async function buildSearchIndex() {
   const entries = [];
 
-  const [{ rows: varRows }, { rows: swRows }] = await Promise.all([api('/api/variables'), api('/api/switches')]);
-  for (const v of varRows) {
-    if (!v.name) continue;
+  // Both sections now live on one tab, so one pass covers them. The dev name
+  // stays searchable alongside the new label - it is what a wiki or a guide
+  // will call the flag.
+  const { rows: stateRows } = await api('/api/gamestate');
+  for (const r of stateRows) {
+    const label = pickLabel(r);
+    if (!label && !r.name) continue;
+    const both = label && r.name && label !== r.name ? `${label} · ${r.name}` : (label || r.name);
     entries.push({
-      cat: 'Variable', label: `${v.index} — ${v.name}`,
+      cat: r.kind === 'switch' ? 'Switch' : 'Variable',
+      label: `${r.index} — ${both}`,
       action: async () => {
-        await showTab('variables');
-        $('#varFilter').value = String(v.index);
-        $('#varFilter').dispatchEvent(new Event('input'));
-        highlightRow([...document.querySelectorAll('#varList tbody tr')].find((r) => r.querySelector('.idx')?.textContent === String(v.index)));
-      },
-    });
-  }
-  for (const s of swRows) {
-    if (!s.name) continue;
-    entries.push({
-      cat: 'Switch', label: `${s.index} — ${s.name}`,
-      action: async () => {
-        await showTab('switches');
-        $('#swFilter').value = String(s.index);
-        $('#swFilter').dispatchEvent(new Event('input'));
-        highlightRow([...document.querySelectorAll('#swList tbody tr')].find((r) => r.querySelector('.idx')?.textContent === String(s.index)));
+        await showTab('gamestate');
+        highlightRow(revealEntry(r.kind, r.index));
       },
     });
   }
@@ -598,6 +597,60 @@ addEventListener('keydown', (e) => {
     if (name) { e.preventDefault(); showTab(name); }
   }
 });
+
+// --- language ------------------------------------------------------------------
+// Scoped to the header, the summary and the Game state tab. The other six tabs
+// still hold English literals; converting them all at once would be a large
+// mechanical diff with no user-visible payoff beyond this feature.
+
+/** Push the current language into every static bit of chrome. */
+function applyLanguage() {
+  const setText = (sel, key) => { const n = $(sel); if (n) n.textContent = t(key); };
+  const setAttr = (sel, attr, key) => { const n = $(sel); if (n) n.setAttribute(attr, t(key)); };
+
+  document.documentElement.lang = lang();
+
+  setText('#dirty', 'nav.unsaved');
+  setAttr('#changesOpen', 'title', 'nav.changesTitle');
+  setAttr('#searchOpen', 'title', 'nav.searchTitle');
+  setAttr('#searchOpen', 'aria-label', 'nav.search');
+  setAttr('#undo', 'title', 'nav.undoTitle');
+  setAttr('#undo', 'aria-label', 'nav.undo');
+  setAttr('#redo', 'title', 'nav.redoTitle');
+  setAttr('#redo', 'aria-label', 'nav.redo');
+  setText('#pick', 'nav.open');
+  setText('#reload', 'nav.revert');
+  setAttr('#reload', 'title', 'nav.revertTitle');
+  setText('#backup', 'nav.backup');
+  setAttr('#backup', 'title', 'nav.backupTitle');
+  setAttr('#langPick', 'aria-label', 'nav.language');
+
+  // "Changes" keeps its count span, so only the leading text node is replaced.
+  const changes = $('#changesOpen');
+  if (changes?.firstChild) changes.firstChild.nodeValue = `${t('nav.changes')} `;
+  // Same for Download, which carries an inline SVG.
+  const write = $('#write');
+  if (write?.firstChild) write.firstChild.nodeValue = `\n      ${t('nav.download')}\n      `;
+
+  setText('#tabGameState', 'tab.gamestate');
+  setText('#gsHint', 'gamestate.hint');
+  setText('#gsOnlySetLabel', 'gamestate.onlySet');
+  setText('#gsShowDeadLabel', 'gamestate.showDead');
+  setAttr('#gsFilter', 'placeholder', 'gamestate.search');
+}
+
+$('#langPick').value = lang();
+$('#langPick').onchange = async (e) => {
+  if (!setLang(e.target.value)) return;
+  applyLanguage();
+  // Descriptions, group names and the summary all change with the language, so
+  // redraw whatever is on screen. The search index caches labels, so drop it.
+  searchIndex = null;
+  renderSummary(lastSummary);
+  loaded.delete(current);
+  await showTab(current);
+};
+applyLanguage();
 
 addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
 

@@ -267,6 +267,60 @@ main { max-width: var(--page); margin: 0 auto; padding: var(--space-6) 20px 80px
 .tag-reserved { background: var(--color-neutral-900); color: var(--dim); }
 .tag-computed { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
 
+/* --- Game state tab ---------------------------------------------------------
+   One card per group, one block per switch/variable. Rows are blocks rather
+   than table cells because each carries a description and a map line, which a
+   three-column table has nowhere to put. */
+
+.langpick { width: auto; min-height: 30px; padding: 3px 8px; font-size: 12px; }
+
+.gs-card {
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: var(--panel); margin-bottom: var(--space-3); overflow: hidden;
+}
+.gs-cardhead {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: 10px var(--space-3); border: 0; border-radius: 0; background: var(--panel-2);
+  font-family: var(--font-heading); font-size: 14px; text-align: left; cursor: pointer;
+}
+.gs-cardhead:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, var(--panel-2)); }
+.gs-caret { color: var(--dim); font-size: 11px; width: 1em; flex: none; }
+.gs-title { color: var(--text); }
+.gs-count { margin-left: auto; font-size: 12px; color: var(--dim); font-family: var(--font-body); }
+
+.gs-body { padding: var(--space-2) var(--space-3) var(--space-3); }
+.gs-note {
+  margin: var(--space-2) 0; padding: 8px 10px; font-size: 12px; color: var(--color-neutral-300);
+  border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: var(--radius-sm); max-width: 72ch;
+}
+
+.gs-row { padding: 10px 0; border-top: 1px solid var(--color-divider); }
+.gs-row:first-child { border-top: 0; }
+/* Entries nothing reads: present, but visibly not the ones worth touching. */
+.gs-dead { opacity: .62; }
+
+.gs-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.gs-id { font-family: var(--mono); font-size: 12px; color: var(--dim); flex: none; }
+.gs-label { font-size: 14px; color: var(--text); }
+.gs-label.unnamed { color: color-mix(in srgb, var(--text) 55%, transparent); }
+/* The RPG Maker name, kept because guides and wikis use it - but secondary. */
+.gs-dev { font-family: var(--mono); font-size: 11px; color: var(--color-neutral-600); }
+.gs-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+
+.gs-desc { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--color-neutral-300); max-width: 78ch; }
+.gs-map { margin: 4px 0 0; font-size: 11px; color: var(--dim); font-family: var(--mono); }
+.gs-control { margin-top: 8px; }
+.gs-control input[type=text], .gs-control input[type=number] { max-width: 200px; }
+
+/* Tag pills. `script` and `wide` are the two that change how much care an edit
+   needs, so they get colour; the rest stay quiet. */
+.gs-tags .tag { cursor: help; border: 1px solid transparent; font-size: 10px; padding: 2px 7px; }
+.tag-script { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--color-accent-300); }
+.tag-wide { border-color: color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); }
+.tag-inverted { background: var(--color-accent-800); color: var(--color-accent-100); }
+.tag-dead { background: var(--color-neutral-900); color: var(--dim); }
+
 /* Badge/stat chip rows. .badges is reused for checkbox toggle chips (Trainer
    badges) and for "label + number input" stat rows (IV/EV/contest on Party) —
    the chip treatment only kicks in for the checkbox case. */
