@@ -10,7 +10,7 @@
 
 import { call } from '../localApi.js';
 import { saveDraft, clearDraft } from '../draftStore.js';
-import { $, el } from './dom.js';
+import { $, el, boolToggle } from './dom.js';
 
 /**
  * Same call shape the old server-backed build used, so every tab is
@@ -271,15 +271,10 @@ export function boundInput(row, f) {
   }
 
   if (type === 'bool') {
-    const cb = el('input');
-    cb.type = 'checkbox';
-    cb.checked = value === true;
-    const txt = el('span', null, ` ${cb.checked}`);
+    const { label: wrap, input: cb } = boolToggle(value === true);
     cb.onchange = async () => {
-      if (await setValue(path, cb.checked, row, fieldLabel)) txt.textContent = ` ${cb.checked}`;
+      if (!await setValue(path, cb.checked, row, fieldLabel)) cb.checked = !cb.checked;
     };
-    const wrap = el('label');
-    wrap.append(cb, txt);
     return wrap;
   }
   const inp = el('input');

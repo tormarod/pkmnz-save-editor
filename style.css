@@ -1,340 +1,481 @@
+/* App layer over the Nocturne design system (src/nocturne.css).
+ *
+ * nocturne.css owns the tokens, the type scale, and .btn/.card/.tag/.table/
+ * .field/.input. Everything here is either (a) a short alias so the app's own
+ * markup picks up a DS component without every call site being rewritten, or
+ * (b) a component the DS doesn't have: the dropzone, the summary band, the tab
+ * row, the raw tree, toasts, modals and search.
+ */
+
 :root {
-  --bg: #12131a;
-  --panel: #1a1c26;
-  --panel-2: #21242f;
-  --line: #2e3240;
-  --text: #e6e8ef;
-  --dim: #939ab0;
-  --accent: #6ea8ff;
+  /* Short aliases onto the DS palette. Rules below use these; the DS tokens
+     stay the single source of truth for what the colours actually are. */
+  --bg: var(--color-bg);
+  --panel: var(--color-surface);
+  --panel-2: var(--color-neutral-900);
+  --line: var(--color-divider);
+  --text: var(--color-text);
+  --dim: var(--color-neutral-500);
+  --accent: var(--color-accent);
+
+  /* Status colours, which the DS has no equivalent for. */
   --good: #59c98a;
   --warn: #f0b45e;
   --bad: #f2726f;
+
   --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* The centred content column, shared by header, summary, tabs and main. */
+  --page: 1160px;
 }
 
-:root[data-theme="light"] {
-  --bg: #f4f5f8;
-  --panel: #ffffff;
-  --panel-2: #eef0f4;
-  --line: #d7dae2;
-  --text: #171a22;
-  --dim: #5b6172;
-  --accent: #2f6fe0;
-  --good: #1c8f5a;
-  --warn: #9a6a10;
-  --bad: #c9403c;
+.hidden { display: none !important; }
+
+:root { color-scheme: dark; }
+
+/* ── booleans ────────────────────────────────────────────────────────────────
+   Every boolean in the app — a switch's value, a Pokédex seen/owned flag, a
+   yes/no save field, a filter toggle — is the same On/Off pill: a checkbox
+   hidden inside a .check label, with a span the CSS paints from :checked.
+   See boolToggle() in src/ui/dom.js. */
+
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); font-size: 13px; }
+.check input[type=checkbox] { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.switchbtn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  min-width: 52px; padding: 3px 10px; font-size: 11px; letter-spacing: .02em;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  border: 1px solid transparent; border-radius: calc(var(--radius-md) * .75);
+  background: var(--color-neutral-900); color: var(--dim);
+  transition: background .12s, color .12s, border-color .12s;
 }
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+.switchbtn::after { content: "Off"; }
+.check input:checked + .switchbtn {
+  background: var(--color-accent-800); color: var(--color-accent-100); border-color: var(--accent);
 }
+.check input:checked + .switchbtn::after { content: "On"; }
+.check:hover .switchbtn { border-color: var(--accent); }
+.check input:focus-visible + .switchbtn { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-header {
-  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
-  padding: 14px 20px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 20;
-}
-h1 { font-size: 16px; margin: 0; font-weight: 650; }
-h1 span { color: var(--dim); font-weight: 400; }
+/* Bitmask flags and trainer badges stay named chips: the label is the state
+   carrier there, so an On/Off pill beside each would just double the text.
+   Their checkboxes are the only ones left showing, so they get the accent. */
+input[type=checkbox] { accent-color: var(--color-accent); width: 15px; height: 15px; margin: 0; }
 
-.openbar { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
-label { color: var(--dim); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
-
-select, input[type=search], input[type=text], input[type=number] {
-  background: var(--panel-2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 6px;
-  padding: 6px 8px; font: inherit;
-}
-input[type=search] { min-width: 280px; }
+/* ── controls ────────────────────────────────────────────────────────────────
+   The app writes plain <button> and <input>/<select> rather than .btn/.input,
+   so the DS look is mapped onto the bare elements and onto the three modifier
+   classes the app already uses: .primary, .ghost and .tiny. */
 
 button {
-  background: var(--panel-2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 6px;
-  padding: 6px 12px; font: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--text);
+  background: transparent; border: 1px solid var(--line);
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
-button:disabled { opacity: .45; cursor: default; }
-button.primary { background: var(--accent); color: #0b1020; border-color: transparent; font-weight: 600; }
-button.ghost { color: var(--dim); }
+button svg { display: block; }
+button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
+button:active:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
 
-.dirty { color: var(--warn); font-size: 12px; }
-.hidden { display: none !important; }
-.openname { color: var(--dim); font-size: 13px; font-family: var(--mono); }
+button.primary { color: var(--accent); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+button.primary:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+button.ghost { border-color: var(--line); }
+
+/* .tiny is every in-card action ("Max IVs", "Give a full set", …) — the DS's
+   .btn-ghost: accent text, no border, so a card full of them stays quiet. */
+button.tiny {
+  border-color: transparent; color: var(--accent);
+  font-size: 12.5px; padding: 4px 10px;
+}
+button.tiny:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+button.tiny:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+button.danger:hover:not(:disabled) { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+button.tiny.danger { color: var(--bad); border-color: transparent; }
+button.tiny.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+
+button.icon { width: 36px; height: 36px; padding: 0; flex: none; }
 
 button.linkish {
-  background: none; border: none; color: var(--accent);
-  padding: 0; text-decoration: underline; cursor: pointer;
+  background: none; border: none; color: var(--accent); padding: 0;
+  text-decoration: underline; text-underline-offset: 2px; font: inherit;
+}
+button.linkish:hover { background: none; }
+
+select, input[type=search], input[type=text], input[type=number] {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--text); caret-color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+select:hover, input[type=search]:hover, input[type=text]:hover, input[type=number]:hover {
+  border-color: color-mix(in srgb, var(--text) 45%, transparent);
+}
+select:focus-visible, input:focus-visible { border-color: var(--accent); outline-offset: 0; }
+::placeholder { color: color-mix(in srgb, var(--text) 45%, transparent); }
+input[type=search]::-webkit-search-cancel-button { display: none; }
+
+label { color: var(--dim); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+
+/* ── header ──────────────────────────────────────────────────────────────────
+   The DS .nav, on the ground rather than a surface, with a divider under it.
+   Everything after the filename chip is pushed right by .openbar. */
+
+header.nav {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.nav-brand { font-size: 18px; margin-right: var(--space-6); }
+.nav-brand span { color: var(--dim); font-weight: 400; }
+
+.openbar { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; flex-wrap: wrap; }
+.openname {
+  font-family: var(--mono); font-size: 12px; color: var(--dim);
+  background: var(--panel); border-radius: var(--radius-sm); padding: 4px 10px;
 }
 
+/* ── empty state ─────────────────────────────────────────────────────────── */
+
+.dz-page-title { text-align: center; font-family: var(--font-heading); font-size: 20px; font-weight: 500; margin: 64px 0 28px; }
+.dz-page-title span { color: var(--dim); font-weight: 400; }
+
 .dropzone {
-  margin: 48px auto; max-width: 620px; padding: 44px 32px;
-  border: 2px dashed var(--line); border-radius: 14px;
+  max-width: 640px; margin: 0 auto; padding: 48px 36px;
+  border: 1px dashed var(--line); border-radius: var(--radius-lg);
   text-align: center; background: var(--panel);
   transition: border-color .12s, background .12s;
 }
-.dropzone.over { border-color: var(--accent); background: #1b2440; }
-.dropzone h2 { margin: 0 0 8px; font-size: 18px; }
-.dropzone p { margin: 6px 0; }
-.dz-note { color: var(--dim); font-size: 12px; }
+.dropzone.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.dz-icon { display: block; margin: 0 auto 18px; color: var(--accent); }
+.dropzone h2 { margin: 0 0 10px; font-size: 19px; }
+.dropzone p { margin: 0 0 6px; font-size: 14px; opacity: .85; }
+.dz-note { margin: 18px 0 0 !important; color: var(--dim); font-size: 12px; line-height: 1.6; opacity: 1 !important; }
+.dz-note + .dz-note { margin-top: 6px !important; }
 .dz-note code {
-  background: var(--panel-2); padding: 1px 5px; border-radius: 4px;
+  background: var(--panel-2); padding: 1px 6px; border-radius: 4px;
   font-family: var(--mono); font-size: 11px;
 }
+.dz-intro {
+  max-width: 640px; margin: 24px auto 64px; padding: 0 20px;
+  text-align: center; color: var(--dim); font-size: 13px; line-height: 1.7;
+}
+.dz-intro strong { color: var(--text); }
+
+/* ── summary band ────────────────────────────────────────────────────────────
+   A surface strip under the header: a responsive grid of kicker+value pairs,
+   then a one-line note about which file the game will actually write back to. */
+
+.summarywrap { background: var(--panel); border-bottom: 1px solid var(--line); }
+.summary { max-width: var(--page); margin: 0 auto; padding: var(--space-4) 20px; }
+.summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: var(--space-4) var(--space-6); }
+.summary-stats div { display: flex; flex-direction: column; }
+.summary-stats dt { margin-bottom: 3px; }
+.summary-stats dd { margin: 0; font-size: 16px; font-weight: 500; }
+.summary-note {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line);
+}
+.summary-note p { margin: 0; font-size: 12.5px; color: var(--color-neutral-400); }
+.summary-note b { color: var(--text); }
+
+/* ── tabs + panels ───────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex; gap: var(--space-6); flex-wrap: wrap;
+  max-width: var(--page); margin: 0 auto; padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs button {
+  border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  background: none; color: var(--dim); padding: 10px 2px; font-size: 14px;
+}
+.tabs button:hover:not(.active) { background: none; color: var(--text); }
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { max-width: var(--page); margin: 0 auto; padding: var(--space-6) 20px 80px; }
+
+/* Panels and the per-tab body wrappers stack their cards on one rhythm, so no
+   card carries a margin of its own. */
+.panel, #trainerBody, #worldBody, #optionsBody, #bagBody, #partyBody { display: grid; gap: var(--space-4); }
+.panel.hidden { display: none; }
+
+.hint { margin: 0; font-size: 13px; color: var(--color-neutral-400); max-width: 64ch; }
+.controls { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+.controls input[type=search] { max-width: 320px; }
+.controls .count { margin-left: auto; font-size: 12px; color: var(--dim); }
+
+/* ── tables ──────────────────────────────────────────────────────────────────
+   Every editable value keeps a visible box, in a table exactly as in a card.
+   A borderless value that only outlines itself on hover is quieter, but it
+   gives no sign the cell can be edited at all — which is worse than the noise
+   it saves. Table inputs are just sized down to fit the row. */
+
+.table .colidx { width: 72px; }
+.table .colval { width: 160px; }
+.table .colflags { width: 230px; }
+.table .num, .table th.num { text-align: right; }
+.table .num input { text-align: right; }
+
+/* "Seen [Off]" rather than "[Off] Seen" — here the label names which flag the
+   pill belongs to, so it has to come first. */
+.dexflags { display: flex; gap: var(--space-4); white-space: nowrap; justify-content: flex-end; }
+.dexflags .check { flex-direction: row-reverse; }
+
+.table input:not([type=checkbox]), .table select {
+  font-family: var(--mono); font-size: 13px; min-height: 30px; padding: 3px 8px;
+  background: var(--panel-2);
+}
+.table tr.changed td { background: color-mix(in srgb, var(--good) 12%, transparent); }
+.table .idx { font-family: var(--mono); color: var(--dim); }
+.table .nm.unnamed { color: color-mix(in srgb, var(--text) 55%, transparent); }
+.table .nmwrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.table td.actions { width: 1%; white-space: nowrap; text-align: right; }
+.trunc { color: var(--warn); font-size: 12px; padding: var(--space-2); }
+.empty { color: var(--dim); font-style: italic; font-size: 13px; }
+
+/* ── cards ───────────────────────────────────────────────────────────────────
+   .card itself is the DS component; these are the pieces the app puts in one. */
+
+.card h3 { margin: 0; font-size: 17px; }
+.card h3 small { color: var(--dim); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+/* :not(.check) so a boolean field's On/Off pill keeps its inline-flex layout. */
+.field > label:not(.check) { display: block; font-size: 12px; margin-bottom: 0; color: color-mix(in srgb, var(--text) 70%, transparent); }
+.field .note { color: var(--dim); font-size: 11px; }
+.resolved { color: var(--good); font-size: 12px; font-family: var(--mono); }
+.flexhead, .monhead { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.spacer { margin-left: auto; }
+.fieldhint { color: var(--dim); font-weight: 400; font-size: 11px; }
+.hintwrap { display: inline-flex; align-items: baseline; gap: 6px; }
+.hintwrap .fieldhint { white-space: nowrap; }
+.note { color: var(--dim); font-size: 11px; }
+
+/* Tag variants the DS doesn't ship: the two "this switch does nothing" notes. */
+/* Careful: this file loads after the DS, so never set `border` on bare .tag —
+   it would win over .tag-outline's accent border. */
+.tag { white-space: nowrap; flex: none; }
+.tag-reserved, .tag-computed { cursor: help; border: 1px solid transparent; }
+.tag-reserved { background: var(--color-neutral-900); color: var(--dim); }
+.tag-computed { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+
+/* Badge/stat chip rows. .badges is reused for checkbox toggle chips (Trainer
+   badges) and for "label + number input" stat rows (IV/EV/contest on Party) —
+   the chip treatment only kicks in for the checkbox case. */
+.badges { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.badges label:has(input[type=checkbox]) {
+  display: inline-flex; align-items: center; font-size: 11px; letter-spacing: .02em;
+  padding: 3px 10px; border-radius: calc(var(--radius-md) * .75);
+  background: var(--color-neutral-800); color: var(--color-neutral-100);
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.badges label:has(input[type=checkbox]) input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.badges label:has(input:checked) { background: var(--color-accent-800); color: var(--color-accent-100); }
+.badges label:has(input[type=checkbox]):hover { background: color-mix(in srgb, var(--accent) 40%, var(--color-neutral-800)); }
+.badges input[type=number] { width: 70px; min-height: 30px; padding: 3px 6px; font-family: var(--mono); font-size: 12px; text-align: center; }
+.badges select { width: auto; min-height: 30px; padding: 3px 6px; font-size: 12px; }
+
+.statline { display: flex; gap: 6px; flex-wrap: wrap; }
+.statchip {
+  background: var(--panel-2); border-radius: var(--radius-sm);
+  padding: 3px 8px; font-family: var(--mono); font-size: 12px;
+}
+.statchip b { color: var(--dim); font-weight: 500; margin-right: 4px; }
+.ribbonchip { display: inline-flex; align-items: center; gap: 4px; }
+.ribbonchip button.tiny { margin: 0; padding: 0 5px; }
+
+.maskrow { display: flex; gap: 10px; flex-wrap: wrap; }
+.masklabel { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-size: 13px; }
+
+/* Thin progress bars: Pokédex counts and party HP. */
+/* The track has to read against both the ground and a card, so it's a tint of
+   the text colour rather than a fixed surface. */
+.barTrack { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
+.barFill { height: 100%; background: var(--accent); }
+.barLabel { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.barLabel span:last-child { color: var(--dim); }
+
+/* ── add forms ───────────────────────────────────────────────────────────── */
+
+.addcard summary { cursor: pointer; font-weight: 500; font-size: 15px; }
+.addcard[open] summary { margin-bottom: var(--space-3); }
+.addgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-3) var(--space-4); }
+.addgrid label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.addgrid label.wide { grid-column: span 2; }
+.addgrid label.check { flex-direction: row; align-items: center; gap: 6px; }
+.statrow { display: flex; gap: 4px; }
+.statrow input { width: 100%; min-width: 0; min-height: 30px; padding: 3px 6px; font-family: var(--mono); font-size: 12px; text-align: center; }
+
+/* ── party & boxes ───────────────────────────────────────────────────────── */
+
+.sectionhead { margin-top: var(--space-3); }
+.sectionhead h3 { margin: 0; }
+
+.monhead { gap: var(--space-3); }
+.monident { min-width: 0; }
+.monhead-name { font-family: var(--font-heading); font-size: 16px; font-weight: 500; }
+.monhead-name span { color: var(--dim); font-weight: 400; font-size: 13px; }
+.monmeta { font-size: 12.5px; color: var(--color-neutral-400); }
+.monactions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+/* A select or number box sitting in a button row, sized to its content. */
+select.inline, input.inline { width: auto; min-height: 30px; padding: 3px 8px; font-size: 12.5px; }
+
+.boxhead { margin: 0; }
+.boxlabel { font-weight: 500; }
+.boxname { width: 140px; }
+.boxbg { width: 64px; }
+.boxname, .boxbg { min-height: 30px; padding: 3px 8px; font-size: 12px; }
+
+.boxlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-3); }
+.boxitem {
+  display: flex; align-items: center; gap: var(--space-2); min-width: 0; text-align: left;
+  background: var(--panel-2); border: 1px solid transparent; border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+.boxitem .sprite { width: 28px; height: 28px; flex: none; }
+.boxitem-meta { min-width: 0; }
+.boxitem-species { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boxitem-level { font-size: 11px; color: var(--dim); }
+.boxitem.shiny { border-color: var(--warn); }
+.boxitem.dim { opacity: .35; }
+.boxitem.selected { border-color: var(--accent); }
+.boxempty { color: var(--dim); font-style: italic; font-size: 13px; margin: 0; }
+
+/* ── raw tree ────────────────────────────────────────────────────────────────
+   The 15 Marshal sections read as a flat list of collapsible rows; everything
+   nested inside one stays monospace and indented. */
+
+.tree { display: grid; gap: 1px; background: var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.tree > .node { background: var(--panel); padding: 0; border: 0; }
+.tree > .node > .self { padding: var(--space-3); gap: var(--space-3); }
+.tree > .node > .self:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.tree > .node > .self .key { font-size: 13px; }
+.tree > .node > .self .ty, .tree > .node > .self .pv { font-size: 12px; color: var(--dim); opacity: 1; }
+/* The section description is pushed to the far right, as the design has it. */
+.tree > .node > .self .note { margin-left: auto; padding-left: var(--space-4); text-align: right; font-family: var(--font-body); font-size: 12.5px; color: var(--color-neutral-400); }
+.tree > .node > div { padding: 0 var(--space-3) var(--space-3) 34px; }
+
+.node { font-family: var(--mono); font-size: 13px; padding-left: 16px; border-left: 1px dotted color-mix(in srgb, var(--text) 10%, transparent); }
+.node > .self { display: flex; gap: 8px; align-items: center; padding: 2px 0; min-width: 0; }
+.node > .self.openable { cursor: pointer; }
+.twist { width: 12px; color: var(--dim); user-select: none; text-align: center; flex: none; transition: transform .12s; }
+.twist.leaf { opacity: .25; }
+.self.open > .twist { transform: rotate(90deg); }
+.key { color: var(--accent); }
+.ty { color: var(--dim); font-size: 11px; }
+.pv { color: var(--text); opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node input, .node select {
+  width: min(220px, 60vw); min-height: 28px; padding: 2px 8px;
+  font-family: var(--mono); font-size: 12px; background: var(--panel-2);
+}
+
+/* ── banner, toast, modals, search ───────────────────────────────────────── */
 
 .banner { padding: 10px 20px; background: #3a2a16; color: var(--warn); border-bottom: 1px solid #4d3a1e; }
 .banner.bad { background: #3a1c1c; color: var(--bad); border-bottom-color: #522; }
 
 .toast {
   position: fixed; right: 18px; bottom: 18px; z-index: 60;
-  background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--good);
-  padding: 10px 14px; border-radius: 8px; max-width: 460px;
-  box-shadow: 0 8px 24px #0008;
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--good);
+  padding: 10px 14px; border-radius: var(--radius-md); max-width: 460px;
+  box-shadow: var(--shadow-md);
 }
 .toast.bad { border-left-color: var(--bad); }
 
-.summary { display: flex; gap: 28px; flex-wrap: wrap; padding: 14px 20px; border-bottom: 1px solid var(--line); }
-.summary div { display: flex; flex-direction: column; }
-.summary dt { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-.summary dd { margin: 0; font-size: 15px; font-weight: 600; }
-.summary .flag { color: var(--warn); }
-
-.tabs { display: flex; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.tabs button { border-radius: 6px 6px 0 0; border-bottom-color: transparent; color: var(--dim); }
-.tabs button.active { color: var(--text); background: var(--panel); border-color: var(--line); border-bottom-color: var(--panel); }
-
-main { padding: 16px 20px 60px; }
-.controls { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-.check { cursor: pointer; }
-.hint { color: var(--dim); margin: 0 0 12px; }
-
-.rows { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.row {
-  display: grid; grid-template-columns: 68px 1fr 200px; gap: 12px;
-  align-items: center; padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.row:last-child { border-bottom: none; }
-.row:nth-child(even) { background: #ffffff05; }
-.row .idx { color: var(--dim); font-family: var(--mono); font-size: 12px; }
-.row .nmwrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.row .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .nm.unnamed { color: var(--dim); font-style: italic; }
-.row input, .row select { width: 100%; font-family: var(--mono); font-size: 13px; }
-.row.changed { background: #1e3326; }
-.dexflags { display: flex; gap: 12px; white-space: nowrap; }
-.dexflags label { color: var(--text); cursor: pointer; }
-
-.tag {
-  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
-  padding: 2px 6px; border-radius: 999px; white-space: nowrap; flex: none;
-  border: 1px solid var(--line); color: var(--dim); cursor: help;
-}
-.tag-reserved { color: var(--dim); }
-.tag-computed { color: var(--warn); border-color: #6b552c; }
-
-.maskrow { display: flex; gap: 10px; flex-wrap: wrap; }
-.masklabel { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-size: 15px; }
-
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
-.card h3 { margin: 0 0 10px; font-size: 14px; }
-.card h3 small { color: var(--dim); font-weight: 400; margin-left: 8px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px 18px; }
-.field { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; }
-.field label { justify-content: flex-end; text-align: right; }
-.field .note { grid-column: 2; color: var(--dim); font-size: 11px; }
-.resolved { color: var(--good); font-size: 12px; font-family: var(--mono); }
-.badges { display: flex; gap: 14px; flex-wrap: wrap; }
-.badges label { color: var(--text); }
-
-.tree { font-family: var(--mono); font-size: 13px; }
-.node { padding-left: 16px; border-left: 1px dotted #ffffff18; }
-.node > .self { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
-.twist { width: 16px; color: var(--dim); cursor: pointer; user-select: none; text-align: center; flex: none; }
-.twist.leaf { cursor: default; opacity: .25; }
-.key { color: var(--accent); }
-.ty { color: var(--dim); font-size: 11px; }
-.pv { color: var(--text); opacity: .8; }
-.node input { font-family: var(--mono); font-size: 12px; width: min(220px, 60vw); }
-.tree { overflow-x: auto; }
-.note { color: var(--dim); font-size: 11px; }
-.trunc { color: var(--warn); font-size: 12px; padding: 2px 0 2px 16px; }
-
-.addcard summary { cursor: pointer; font-weight: 600; }
-.addcard[open] summary { margin-bottom: 12px; }
-.addgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px 16px; margin-bottom: 10px; }
-.addgrid label { flex-direction: column; align-items: stretch; gap: 4px; display: flex; }
-.addgrid label.wide { grid-column: span 2; }
-.addgrid label.check { flex-direction: row; align-items: center; gap: 6px; }
-.addgrid input, .addgrid select { width: 100%; }
-.statrow { display: flex; gap: 4px; }
-.statrow input { width: 100%; min-width: 0; font-family: var(--mono); font-size: 12px; text-align: center; }
-button.tiny { padding: 2px 8px; font-size: 11px; margin-top: 4px; margin-right: 4px; }
-.statline { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
-.statchip {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
-  padding: 3px 9px; font-family: var(--mono); font-size: 12px;
-}
-.statchip b { color: var(--dim); font-weight: 500; margin-right: 4px; }
-.ribbonchip { display: inline-flex; align-items: center; gap: 4px; }
-.ribbonchip button.tiny { margin: 0; padding: 0 5px; }
-
-.monhead, .flexhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.spacer { margin-left: auto; }
-.boxhead { margin: 0 0 10px; }
-.boxlabel { font-weight: 600; }
-.boxname { width: 140px; }
-.boxbg { width: 60px; }
-button.danger { color: var(--bad); border-color: #533; }
-button.danger:hover:not(:disabled) { border-color: var(--bad); }
-
-/* box grid: a compact overview of all 30 slots, click one to expand its card */
-.boxgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
-.boxcell {
-  position: relative; aspect-ratio: 1; padding: 0; min-width: 0;
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
-}
-.boxcell:disabled { cursor: default; opacity: .35; }
-.boxcell:disabled:hover { border-color: var(--line); }
-.boxcell .sprite { width: 100%; height: 100%; }
-.boxcell.shiny { border-color: var(--warn); }
-.boxcell.dim { opacity: .3; }
-.boxcell.selected { border-color: var(--accent); border-width: 2px; }
-.boxcelllvl {
-  position: absolute; right: 2px; bottom: 1px; font-size: 9px; color: var(--dim);
-  background: #00000090; border-radius: 3px; padding: 0 3px; line-height: 1.3;
-  pointer-events: none;
-}
-:root[data-theme="light"] .boxcelllvl { background: #ffffffb0; }
-
-table.items { width: 100%; border-collapse: collapse; }
-table.items th { text-align: left; color: var(--dim); font-weight: 500; font-size: 11px; text-transform: uppercase; padding: 4px 8px; }
-table.items td { padding: 3px 8px; border-top: 1px solid var(--line); }
-table.items input { width: 100%; }
-.empty { color: var(--dim); font-style: italic; }
-
-/* onboarding / empty state */
-.dz-intro { text-align: left; margin: 0 0 20px; color: var(--text); }
-
-/* sprites */
-.sprite { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; flex: none; }
-.sprite.item-sprite { width: 20px; height: 20px; }
-.sprite-placeholder { display: inline-block; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--line); }
-.monhead .sprite { margin-right: 2px; }
-table.items td.iconcell { width: 26px; padding-right: 0; }
-
-/* inline range/format hints */
-.fieldhint { color: var(--dim); font-weight: 400; font-size: 11px; }
-.hintwrap { display: inline-flex; align-items: baseline; gap: 6px; }
-.hintwrap .fieldhint { white-space: nowrap; }
-
-/* undo/redo */
-#undo, #redo { font-size: 15px; padding: 5px 10px; }
-
-/* persistent change panel (always available, not just at download time) */
-.changespanel {
-  margin: 0 20px; padding: 8px 14px; background: var(--panel);
-  border: 1px solid var(--line); border-radius: 8px; border-top: none;
-  border-top-left-radius: 0; border-top-right-radius: 0;
-}
-.changespanel summary { cursor: pointer; font-weight: 600; font-size: 13px; padding: 4px 0; }
-.changespanel[open] summary { margin-bottom: 6px; }
-.changespanel .changelist { max-height: 320px; overflow-y: auto; border-top: 1px solid var(--line); }
-.changespanel .changelist li { align-items: center; }
-.changespanel .cdesc { flex: 1; }
-
-/* "what will change" modal */
 .modal-overlay {
-  position: fixed; inset: 0; background: #000a; z-index: 100;
-  display: flex; align-items: center; justify-content: center; padding: 20px;
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 62%, transparent);
 }
 .modal {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 18px 20px; max-width: 560px; width: 100%; max-height: 80vh;
-  display: flex; flex-direction: column; box-shadow: 0 20px 60px #0009;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  width: min(560px, 100%); max-height: 80vh; padding: var(--space-6);
+  background: var(--panel); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
 }
-.modal h3 { margin: 0 0 12px; font-size: 15px; }
+.modal h3 { margin: 0; font-size: 20px; }
+.modal p { margin: 0; font-size: 14px; opacity: .85; }
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
 .warnlist {
-  list-style: none; margin: 0 0 12px; padding: 8px 10px; border-radius: 6px;
-  background: #3a2a1650; border: 1px solid #6b552c; color: var(--warn); font-size: 12px;
+  list-style: none; margin: 0; padding: var(--space-3); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); font-size: 12px;
 }
 .warnlist li { padding: 2px 0; }
-:root[data-theme="light"] .warnlist { background: #fff3dd; }
-.changelist { list-style: none; margin: 0; padding: 0; overflow-y: auto; border-top: 1px solid var(--line); }
+.changelist { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
 .changelist li {
-  display: flex; justify-content: space-between; gap: 16px; padding: 7px 2px;
-  border-bottom: 1px solid var(--line); font-size: 13px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+  padding: 7px 2px; font-size: 13px;
+  background: linear-gradient(to right,
+    transparent, color-mix(in srgb, var(--text) 8%, transparent) 48px,
+    color-mix(in srgb, var(--text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
 }
-.changelist .cdesc { color: var(--text); }
+.changelist .cdesc { flex: 1; color: var(--text); }
 .changelist .cdiff { color: var(--dim); font-family: var(--mono); font-size: 12px; text-align: right; white-space: nowrap; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
-/* global search */
-.searchmodal { max-width: 520px; padding-bottom: 8px; }
-.searchmodal input[type=search] { width: 100%; min-width: 0; font-size: 15px; margin-bottom: 10px; }
-.searchresults { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; border-top: 1px solid var(--line); }
+.searchmodal { width: min(520px, 100%); }
+.searchmodal input[type=search] { font-size: 15px; }
+.searchresults { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; }
 .searchresults li {
-  display: flex; align-items: baseline; gap: 10px; padding: 8px 4px;
-  border-bottom: 1px solid var(--line); cursor: pointer;
+  display: flex; align-items: baseline; gap: 10px; padding: 8px 4px; cursor: pointer;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(to right,
+    transparent, color-mix(in srgb, var(--text) 8%, transparent) 48px,
+    color-mix(in srgb, var(--text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
 }
-.searchresults li:last-child { border-bottom: none; }
 .searchresults li.active { background: var(--panel-2); }
-.searchresults .scat {
-  flex: none; width: 90px; color: var(--dim); font-size: 10px; text-transform: uppercase;
-  letter-spacing: .04em;
-}
+.searchresults .scat { flex: none; width: 90px; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
 .searchresults .slabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.searchresults .sempty { color: var(--dim); padding: 10px 4px; font-style: italic; }
+.searchresults .sempty { color: var(--dim); padding: 10px 4px; font-style: italic; background: none; cursor: default; }
 
 @keyframes searchHitFlash {
   0%, 100% { background: transparent; }
-  30% { background: #6ea8ff33; }
+  30% { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 }
-.search-hit { animation: searchHitFlash 1.6s ease-out; }
+.search-hit, .search-hit td { animation: searchHitFlash 1.6s ease-out; }
 
-/* narrow window / phone layout */
-@media (max-width: 640px) {
-  header { padding: 10px 12px; gap: 10px; }
-  .openbar { gap: 6px; margin-left: 0; }
-  main { padding: 12px 12px 48px; }
-  .summary { gap: 14px; padding: 10px 12px; }
-  .tabs { padding: 8px 12px 0; flex-wrap: nowrap; overflow-x: auto; }
+/* ── sprites ─────────────────────────────────────────────────────────────── */
+
+.sprite { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; flex: none; }
+.sprite.item-sprite { width: 20px; height: 20px; }
+.sprite-placeholder { display: inline-block; border-radius: var(--radius-sm); background: var(--panel-2); }
+.monhead .sprite { width: 44px; height: 44px; }
+.table td.iconcell { width: 26px; padding-right: 0; }
+
+/* ── narrow window / phone layout ────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  header.nav { padding: var(--space-3) var(--space-4); gap: var(--space-3); }
+  .nav-brand { margin-right: var(--space-3); }
+  .openbar { gap: var(--space-2); margin-left: 0; }
+  main { padding: var(--space-4) 12px 48px; }
+  .summary { padding: var(--space-3) 12px; }
+  .tabs { padding: 0 12px; flex-wrap: nowrap; overflow-x: auto; gap: var(--space-4); }
   .tabs button { flex: none; }
 
-  .controls { flex-direction: column; align-items: stretch; gap: 8px; }
-  input[type=search] { min-width: 0; width: 100%; }
+  .controls { align-items: stretch; flex-direction: column; }
+  .controls input[type=search] { max-width: none; }
+  .controls .count { margin-left: 0; }
 
-  .row { display: flex; flex-wrap: wrap; row-gap: 4px; }
-  .row .idx { flex: none; }
-  .row .nmwrap { flex: 1 1 auto; min-width: 0; }
-  .row input, .row select { flex: 1 1 100%; }
-
-  .grid { grid-template-columns: 1fr; }
-  .field { grid-template-columns: 1fr; }
-  .field label { text-align: left; justify-content: flex-start; }
-  .field .note { grid-column: 1; }
-
-  .addgrid { grid-template-columns: 1fr; }
+  .grid, .addgrid { grid-template-columns: 1fr; }
   .addgrid label.wide { grid-column: span 1; }
   .statrow { flex-wrap: wrap; }
+  .boxlist { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 
-  table.items { display: block; overflow-x: auto; }
+  .table { display: block; overflow-x: auto; }
+  .tree { overflow-x: auto; }
 
-  .boxgrid { grid-template-columns: repeat(5, 1fr); gap: 3px; }
-  .boxhead { flex-direction: column; align-items: stretch; }
-  .boxname { width: 100%; }
-
-  .changespanel { margin: 0 12px; }
-  .changespanel .changelist li { flex-direction: column; align-items: stretch; gap: 4px; }
-
-  .modal { padding: 14px 16px; }
-  .changelist li { flex-direction: column; gap: 2px; }
+  .modal { padding: var(--space-4); }
+  .changelist li { flex-direction: column; align-items: stretch; gap: 2px; }
   .changelist .cdiff { text-align: left; }
 }

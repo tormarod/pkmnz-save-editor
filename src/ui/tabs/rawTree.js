@@ -48,11 +48,20 @@ function treeNode(child, path) {
   if (child.note) self.append(el('span', 'note', child.note));
   node.append(self);
 
+  // The whole row is the hit target, not just the chevron — these rows are the
+  // one navigation control this tab has. Clicks that land on an editable value
+  // are the input's, not the row's.
   let kids = null;
   if (child.expandable) {
-    tw.onclick = async () => {
-      if (kids) { kids.classList.toggle('hidden'); tw.textContent = kids.classList.contains('hidden') ? '▸' : '▾'; return; }
-      tw.textContent = '▾';
+    self.classList.add('openable');
+    self.onclick = async (e) => {
+      if (e.target.closest('input, select, button')) return;
+      if (kids) {
+        kids.classList.toggle('hidden');
+        self.classList.toggle('open', !kids.classList.contains('hidden'));
+        return;
+      }
+      self.classList.add('open');
       kids = el('div');
       node.append(kids);
       try {
@@ -60,7 +69,7 @@ function treeNode(child, path) {
           if (c.truncated) { kids.append(el('div', 'trunc', `…${c.truncated} more not shown`)); continue; }
           kids.append(treeNode(c, [...path, c.step]));
         }
-      } catch (e) { kids.append(el('div', 'trunc', e.message)); }
+      } catch (e2) { kids.append(el('div', 'trunc', e2.message)); }
     };
   }
   return node;

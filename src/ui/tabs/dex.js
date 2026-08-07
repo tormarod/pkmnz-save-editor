@@ -1,7 +1,7 @@
 // The Pokedex tab: bulk "mark all seen/owned" actions plus a filterable
 // per-species seen/owned toggle list, mirroring the Variables/Switches filter UX.
 
-import { $, el } from '../dom.js';
+import { $, el, boolToggle } from '../dom.js';
 import {
   api, setValue, toast, setDirty, refreshUndoButtons,
 } from '../session.js';
@@ -18,45 +18,42 @@ function draw() {
     if (!q) return true;
     return String(r.index) === q || String(r.index).includes(q) || (r.name || '').toLowerCase().includes(q);
   });
-  if (!shown.length) { listEl.append(el('div', 'row', 'nothing matches')); return; }
+  if (!shown.length) { listEl.append(el('p', 'empty', 'Nothing matches.')); return; }
 
-  const frag = document.createDocumentFragment();
+  const table = el('table', 'table');
+  const head = el('tr');
+  head.append(el('th', 'colidx', '#'), el('th', null, 'Species'), el('th', 'colflags', 'Record'));
+  const thead = el('thead');
+  thead.append(head);
+  table.append(thead);
+  const body = el('tbody');
   for (const r of shown.slice(0, 1200)) {
-    const row = el('div', 'row');
-    row.append(el('span', 'idx', String(r.index)));
-    const nmWrap = el('span', 'nmwrap');
-    nmWrap.append(el('span', `nm${r.name ? '' : ' unnamed'}`, r.name || `species ${r.index}`));
-    row.append(nmWrap);
+    const tr = el('tr');
+    tr.append(el('td', 'idx', String(r.index)));
+    tr.append(el('td', null, r.name || `species ${r.index}`));
 
-    const flags = el('span', 'dexflags');
+    const flags = el('td', 'dexflags');
     const label = r.name || `species ${r.index}`;
 
-    const seenLab = el('label', 'check');
-    const seenCb = el('input');
-    seenCb.type = 'checkbox';
-    seenCb.checked = r.seen;
+    const { label: seenLab, input: seenCb } = boolToggle(r.seen, 'Seen');
     seenCb.onchange = async () => {
-      if (await setValue(r.seenPath, seenCb.checked, row, `${label} seen`)) r.seen = seenCb.checked;
+      if (await setValue(r.seenPath, seenCb.checked, tr, `${label} seen`)) r.seen = seenCb.checked;
       else seenCb.checked = r.seen;
     };
-    seenLab.append(seenCb, document.createTextNode(' Seen'));
 
-    const ownedLab = el('label', 'check');
-    const ownedCb = el('input');
-    ownedCb.type = 'checkbox';
-    ownedCb.checked = r.owned;
+    const { label: ownedLab, input: ownedCb } = boolToggle(r.owned, 'Owned');
     ownedCb.onchange = async () => {
-      if (await setValue(r.ownedPath, ownedCb.checked, row, `${label} owned`)) r.owned = ownedCb.checked;
+      if (await setValue(r.ownedPath, ownedCb.checked, tr, `${label} owned`)) r.owned = ownedCb.checked;
       else ownedCb.checked = r.owned;
     };
-    ownedLab.append(ownedCb, document.createTextNode(' Owned'));
 
     flags.append(seenLab, ownedLab);
-    row.append(flags);
-    frag.append(row);
+    tr.append(flags);
+    body.append(tr);
   }
-  listEl.append(frag);
-  if (shown.length > 1200) listEl.append(el('div', 'trunc', `…${shown.length - 1200} more, narrow the filter`));
+  table.append(body);
+  listEl.append(table);
+  if (shown.length > 1200) listEl.append(el('p', 'trunc', `…${shown.length - 1200} more, narrow the filter`));
 }
 
 export async function loadDex() {

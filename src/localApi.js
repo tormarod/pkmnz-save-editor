@@ -261,8 +261,10 @@ const ROUTES = {
     return { open: views.summary(s), dirty: state.dirty };
   },
 
-  '/api/variables': (b) => ({ rows: views.variables(need(), !!b.onlySet) }),
-  '/api/switches': (b) => ({ rows: views.switches(need(), !!b.onlySet) }),
+  // `total` is how many exist before the onlySet filter, so the tab can say
+  // how many rows it is holding back.
+  '/api/variables': (b) => ({ rows: views.variables(need(), !!b.onlySet), total: views.variables(need()).length }),
+  '/api/switches': (b) => ({ rows: views.switches(need(), !!b.onlySet), total: views.switches(need()).length }),
   '/api/trainer': () => views.trainer(need()),
   '/api/world': () => views.world(need()),
   '/api/player': () => views.player(need()),
