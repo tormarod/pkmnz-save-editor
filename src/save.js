@@ -11,6 +11,7 @@ import {
 } from './marshal.js';
 import { SECTIONS, fieldInfo } from './schema.js';
 import { nameOf } from './labels.js';
+import { pick } from './i18n.js';
 
 export class Save {
   /**
@@ -245,19 +246,24 @@ export function children(save, path) {
 
   if (Array.isArray(v)) {
     // the root: the list of streams
-    v.forEach((s, i) => push({ k: 's', i }, `${i}  ${SECTIONS[i].name}`, s, { note: SECTIONS[i].desc }));
+    v.forEach((s, i) => push({ k: 's', i }, `${i}  ${SECTIONS[i].name}`, s, { note: pick(SECTIONS[i].desc) }));
     return out;
   }
 
   if (v.t === 'obj' || v.t === 'struct') {
     for (const [name, val] of v.ivars) {
       const info = fieldInfo(v.cls, name);
-      const extra = { note: info.note, kind: info.kind, options: info.options, mask: info.mask };
+      const extra = {
+        note: pick(info.note),
+        kind: info.kind,
+        options: info.options?.map((o) => ({ ...o, label: pick(o.label) })),
+        mask: info.mask,
+      };
       if (info.kind && typeof val === 'number') {
         const nm = nameOf(info.kind, val);
         if (nm) extra.resolved = nm;
       }
-      push({ k: 'v', name }, info.label, val, extra);
+      push({ k: 'v', name }, pick(info.label), val, extra);
     }
     return out;
   }

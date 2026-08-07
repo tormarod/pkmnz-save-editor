@@ -49,11 +49,13 @@
   background: var(--color-neutral-900); color: var(--dim);
   transition: background .12s, color .12s, border-color .12s;
 }
-.switchbtn::after { content: "Off"; }
+/* The two words on the pill are the only UI text the stylesheet owns, so
+   applyLanguage() in app.js keeps these two custom properties in step. */
+.switchbtn::after { content: var(--switch-off, "Off"); }
 .check input:checked + .switchbtn {
   background: var(--color-accent-800); color: var(--color-accent-100); border-color: var(--accent);
 }
-.check input:checked + .switchbtn::after { content: "On"; }
+.check input:checked + .switchbtn::after { content: var(--switch-on, "On"); }
 .check:hover .switchbtn { border-color: var(--accent); }
 .check input:focus-visible + .switchbtn { outline: 2px solid var(--accent); outline-offset: 2px; }
 

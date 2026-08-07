@@ -16,6 +16,7 @@ import {
   recalcStats, STAT_INPUTS, setContestStat, addRibbon, removeRibbon,
 } from './create.js';
 import { validate } from './validate.js';
+import { t } from './i18n.js';
 
 const UNDO_LIMIT = 20;
 
@@ -140,10 +141,10 @@ function recordChange(desc) {
 }
 
 function monLabel(mon) {
-  if (!mon) return 'a Pokémon';
+  if (!mon) return t('change.aPokemon');
   const nick = strToJs(getIvar(mon, '@name'));
   const species = getIvar(mon, '@species');
-  return nick || nameOf('species', species) || (species ? `species ${species}` : 'a Pokémon');
+  return nick || nameOf('species', species) || (species ? t('change.speciesN', { n: species }) : t('change.aPokemon'));
 }
 
 /**
@@ -283,7 +284,7 @@ const ROUTES = {
       if (arr.items[i] !== true) { arr.items[i] = true; count++; }
     }
     state.dirty = true;
-    if (count) recordChange(`Marked all species as ${which === '@seen' ? 'seen' : 'owned'} (${count} newly marked)`);
+    if (count) recordChange(t(which === '@seen' ? 'change.markedSeen' : 'change.markedOwned', { n: count }));
     return { count, rows: views.dex(s) };
   },
   '/api/settings': () => views.options(need()),
@@ -328,7 +329,7 @@ const ROUTES = {
     setIvar(mon, '@iv', RArray([31, 31, 31, 31, 31, 31]));
     const r = recalcStats(mon);
     state.dirty = true;
-    recordChange(`Maxed IVs for ${monLabel(mon)}`);
+    recordChange(t('change.maxedIVs', { name: monLabel(mon) }));
     return { ok: true, ...r };
   },
 
@@ -359,7 +360,10 @@ const ROUTES = {
     const before = mon?.ivars?.find(([k]) => k === b.ivar)?.[1] ?? null;
     const value = setContestStat(mon, b.ivar, b.value);
     state.dirty = true;
-    recordFieldChange(`${monLabel(mon)}: ${b.ivar.replace(/^@/, '')}`, [...b.path, { k: 'v', name: b.ivar }], before, value);
+    recordFieldChange(
+      t('party.fieldLabel', { name: monLabel(mon), field: b.ivar.replace(/^@/, '') }),
+      [...b.path, { k: 'v', name: b.ivar }], before, value,
+    );
     return { ok: true, value };
   },
 
@@ -369,7 +373,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     const ribbons = addRibbon(mon, b.ribbon);
     state.dirty = true;
-    recordChange(`Added ribbon ${Number(b.ribbon)} to ${monLabel(mon)}`);
+    recordChange(t('change.ribbonAdded', { id: Number(b.ribbon), name: monLabel(mon) }));
     return { ok: true, ribbons };
   },
 
@@ -379,7 +383,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     const ribbons = removeRibbon(mon, b.ribbon);
     state.dirty = true;
-    recordChange(`Removed ribbon ${Number(b.ribbon)} from ${monLabel(mon)}`);
+    recordChange(t('change.ribbonRemoved', { id: Number(b.ribbon), name: monLabel(mon) }));
     return { ok: true, ribbons };
   },
 
@@ -407,9 +411,11 @@ const ROUTES = {
     else if (b.target === 'box') r = { where: 'box', ...roster.addToBox(s, Number(b.box) || 0, opts) };
     else r = roster.addAnywhere(s, opts);
     state.dirty = true;
-    const label = opts.nickname || nameOf('species', opts.species) || `species ${opts.species}`;
-    const dest = r.where === 'party' ? `party slot ${r.index + 1}` : `box ${r.box + 1} slot ${r.slot + 1}`;
-    recordChange(`Added ${label} (Lv. ${opts.level}) to ${dest}`);
+    const label = opts.nickname || nameOf('species', opts.species) || t('change.speciesN', { n: opts.species });
+    const dest = r.where === 'party'
+      ? t('change.partySlot', { n: r.index + 1 })
+      : t('change.boxSlot', { box: r.box + 1, slot: r.slot + 1 });
+    recordChange(t('change.added', { name: label, level: opts.level, dest }));
     return { ...r, summary: views.summary(s) };
   },
 
@@ -419,13 +425,15 @@ const ROUTES = {
     const mon = b.where === 'party'
       ? views.party(s)[Number(b.index)]
       : views.boxes(s).find((x) => x.index === Number(b.box))?.pokemon.find((m) => m.slot === Number(b.slot));
-    const label = mon?.nickname || mon?.speciesName || 'a Pokémon';
+    const label = mon?.nickname || mon?.speciesName || t('change.aPokemon');
     const r = b.where === 'party'
       ? roster.removeFromParty(s, Number(b.index))
       : roster.removeFromBox(s, Number(b.box), Number(b.slot));
     state.dirty = true;
-    const from = b.where === 'party' ? `party slot ${Number(b.index) + 1}` : `box ${Number(b.box) + 1}`;
-    recordChange(`Removed ${label} from ${from}`);
+    const from = b.where === 'party'
+      ? t('change.partySlot', { n: Number(b.index) + 1 })
+      : t('party.boxNumber', { n: Number(b.box) + 1 });
+    recordChange(t('change.removed', { name: label, from }));
     return { ...r, summary: views.summary(s) };
   },
 
@@ -435,12 +443,14 @@ const ROUTES = {
     const mon = b.direction === 'toParty'
       ? views.boxes(s).find((x) => x.index === Number(b.box))?.pokemon.find((m) => m.slot === Number(b.slot))
       : views.party(s)[Number(b.index)];
-    const label = mon?.nickname || mon?.speciesName || 'a Pokémon';
+    const label = mon?.nickname || mon?.speciesName || t('change.aPokemon');
     const r = b.direction === 'toParty'
       ? roster.boxToParty(s, Number(b.box), Number(b.slot))
       : roster.partyToBox(s, Number(b.index), Number(b.box) || 0);
     state.dirty = true;
-    recordChange(b.direction === 'toParty' ? `Moved ${label} to the party` : `Moved ${label} to box ${(Number(b.box) || 0) + 1}`);
+    recordChange(b.direction === 'toParty'
+      ? t('change.movedToParty', { name: label })
+      : t('change.movedToBox', { name: label, n: (Number(b.box) || 0) + 1 }));
     return { ...r, summary: views.summary(s) };
   },
 
@@ -450,11 +460,11 @@ const ROUTES = {
     const party = views.party(s);
     const a = Number(b.a);
     const bb = Number(b.b);
-    const labelA = party[a]?.nickname || party[a]?.speciesName || `slot ${a + 1}`;
-    const labelB = party[bb]?.nickname || party[bb]?.speciesName || `slot ${bb + 1}`;
+    const labelA = party[a]?.nickname || party[a]?.speciesName || t('change.slotN', { n: a + 1 });
+    const labelB = party[bb]?.nickname || party[bb]?.speciesName || t('change.slotN', { n: bb + 1 });
     roster.swapParty(s, a, bb);
     state.dirty = true;
-    recordChange(`Swapped party order of ${labelA} and ${labelB}`);
+    recordChange(t('change.swapped', { a: labelA, b: labelB }));
     return { party: views.party(s) };
   },
 
@@ -464,7 +474,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     const id = roster.learnMove(mon, Number(b.moveId));
     state.dirty = true;
-    recordChange(`Taught ${monLabel(mon)} ${nameOf('moves', id) || `move ${id}`}`);
+    recordChange(t('change.taught', { name: monLabel(mon), move: nameOf('moves', id) || t('change.moveN', { n: id }) }));
     return { ok: true };
   },
 
@@ -474,7 +484,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     const id = roster.forgetMove(mon, Number(b.slot));
     state.dirty = true;
-    recordChange(`${monLabel(mon)} forgot ${nameOf('moves', id) || 'a move'}`);
+    recordChange(t('change.forgot', { name: monLabel(mon), move: nameOf('moves', id) || t('change.aMove') }));
     return { ok: true };
   },
 
@@ -484,7 +494,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     roster.restoreMovePP(mon);
     state.dirty = true;
-    recordChange(`Restored PP for ${monLabel(mon)}`);
+    recordChange(t('change.restoredPP', { name: monLabel(mon) }));
     return { ok: true };
   },
 
@@ -494,7 +504,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     roster.relearnMoves(mon);
     state.dirty = true;
-    recordChange(`Reset ${monLabel(mon)}'s moves to the level-up set`);
+    recordChange(t('change.relearned', { name: monLabel(mon) }));
     return { ok: true };
   },
 
@@ -504,7 +514,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     roster.hatchEgg(mon);
     state.dirty = true;
-    recordChange(`Hatched ${monLabel(mon)}`);
+    recordChange(t('change.hatched', { name: monLabel(mon) }));
     return { ok: true };
   },
 
@@ -513,7 +523,7 @@ const ROUTES = {
     pushUndo();
     const r = roster.healParty(s);
     state.dirty = true;
-    recordChange(`Healed the party (${r.healed} Pokémon: HP, status and PP restored)`);
+    recordChange(t('change.healed', { n: r.healed }));
     return { ...r, party: views.party(s) };
   },
 
@@ -522,7 +532,7 @@ const ROUTES = {
     pushUndo();
     const r = roster.setPartyLevel(s, b.level);
     state.dirty = true;
-    if (r.count) recordChange(`Set the whole party to level ${r.level} (${r.count} Pokémon)`);
+    if (r.count) recordChange(t('change.rareCandy', { level: r.level, n: r.count }));
     return { ...r, party: views.party(s) };
   },
 
@@ -533,7 +543,7 @@ const ROUTES = {
     roster.setEVs(mon, b.evs);
     const r = recalcStats(mon);
     state.dirty = true;
-    recordChange(`Set EVs for ${monLabel(mon)}`);
+    recordChange(t('change.setEVs', { name: monLabel(mon) }));
     return { ok: true, ...r };
   },
 
@@ -543,7 +553,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     roster.maxHappiness(mon);
     state.dirty = true;
-    recordChange(`Maxed happiness for ${monLabel(mon)}`);
+    recordChange(t('change.maxedHappiness', { name: monLabel(mon) }));
     return { ok: true };
   },
 
@@ -553,7 +563,7 @@ const ROUTES = {
     const mon = s.get(b.path);
     roster.maxPPUps(mon);
     state.dirty = true;
-    recordChange(`Maxed PP Ups for ${monLabel(mon)}`);
+    recordChange(t('change.maxedPPUps', { name: monLabel(mon) }));
     return { ok: true };
   },
 
@@ -568,8 +578,8 @@ const ROUTES = {
     setIvar(box, b.field, value);
     state.dirty = true;
     recordChange(b.field === '@name'
-      ? `Renamed box ${Number(b.box) + 1} to "${b.value}"`
-      : `Set box ${Number(b.box) + 1}'s wallpaper to ${value}`);
+      ? t('change.boxRenamed', { n: Number(b.box) + 1, name: b.value })
+      : t('change.boxWallpaper', { n: Number(b.box) + 1, value }));
     return { ok: true, boxes: views.boxes(s) };
   },
 
@@ -578,7 +588,7 @@ const ROUTES = {
     pushUndo();
     const r = roster.sortBox(s, Number(b.box));
     state.dirty = true;
-    recordChange(`Sorted box ${Number(b.box) + 1} by species`);
+    recordChange(t('change.boxSorted', { n: Number(b.box) + 1 }));
     return { ...r, boxes: views.boxes(s) };
   },
 
@@ -587,9 +597,11 @@ const ROUTES = {
     pushUndo();
     const r = bag.addItem(s, { item: Number(b.item), qty: b.qty !== undefined ? Number(b.qty) : 1 });
     state.dirty = true;
-    const name = nameOf('items', Number(b.item)) || `item ${b.item}`;
+    const name = nameOf('items', Number(b.item)) || t('change.itemN', { n: b.item });
     const qty = b.qty ?? 1;
-    recordChange(r.stacked ? `Added ${qty}x ${name} to the bag (now have ${r.qty})` : `Added ${qty}x ${name} to the bag`);
+    recordChange(r.stacked
+      ? t('change.itemStacked', { qty, name, total: r.qty })
+      : t('change.itemAdded', { qty, name }));
     return { ...r, pockets: views.bag(s) };
   },
 
@@ -598,10 +610,10 @@ const ROUTES = {
     pushUndo();
     const before = views.bag(s).find((p) => p.pocket === Number(b.pocket))
       ?.items.find((it) => it.index === Number(b.index));
-    const name = before ? (before.name || `item ${before.id}`) : 'item';
+    const name = before ? (before.name || t('change.itemN', { n: before.id })) : t('bag.item');
     bag.removeItem(s, Number(b.pocket), Number(b.index));
     state.dirty = true;
-    recordChange(`Removed ${before ? `${before.qty}x ` : ''}${name} from the bag`);
+    recordChange(t('change.itemRemoved', { name: `${before ? `${before.qty}x ` : ''}${name}` }));
     return { pockets: views.bag(s) };
   },
 
@@ -610,7 +622,7 @@ const ROUTES = {
     pushUndo();
     const r = bag.maxPocket(s, Number(b.pocket));
     state.dirty = true;
-    if (r.count) recordChange(`Maxed the quantity of ${r.count} item${r.count === 1 ? '' : 's'} in pocket ${Number(b.pocket)}`);
+    if (r.count) recordChange(t('change.maxedPocket', { n: r.count, pocket: Number(b.pocket) }));
     return { ...r, pockets: views.bag(s) };
   },
 
@@ -620,7 +632,7 @@ const ROUTES = {
     const qty = b.qty !== undefined ? Number(b.qty) : 1;
     const r = bag.giveSet(s, Number(b.pocket), qty);
     state.dirty = true;
-    if (r.count) recordChange(`Gave ${qty}x of every item in pocket ${Number(b.pocket)} (${r.count} items)`);
+    if (r.count) recordChange(t('change.gaveSet', { qty, pocket: Number(b.pocket), n: r.count }));
     return { ...r, pockets: views.bag(s) };
   },
 };

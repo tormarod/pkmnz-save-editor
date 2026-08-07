@@ -100,7 +100,14 @@ export function recalcStats(mon) {
 
 /** The six contest-stat ivars, in the order the game's contest UI shows them. */
 export const CONTEST_IVARS = ['@cool', '@beauty', '@cute', '@smart', '@tough', '@sheen'];
-export const CONTEST_NAMES = ['Cool', 'Beauty', 'Cute', 'Smart', 'Tough', 'Sheen'];
+export const CONTEST_NAMES = [
+  { en: 'Cool', es: 'Carisma' },
+  { en: 'Beauty', es: 'Belleza' },
+  { en: 'Cute', es: 'Dulzura' },
+  { en: 'Smart', es: 'Ingenio' },
+  { en: 'Tough', es: 'Dureza' },
+  { en: 'Sheen', es: 'Brillo' },
+];
 
 /**
  * Set one contest stat (0-255), creating the ivar if this Pokemon never had

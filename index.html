@@ -9,28 +9,28 @@
 </head>
 <body>
 <header class="nav">
-  <span class="nav-brand">Pokémon Z <span>save editor</span></span>
+  <span class="nav-brand">Pokémon Z <span data-i18n="app.brand">save editor</span></span>
   <span id="openName" class="openname hidden"></span>
   <div class="openbar">
-    <select id="langPick" class="langpick" aria-label="Language">
+    <select id="langPick" class="langpick" data-i18n-aria="nav.language" aria-label="Language">
       <option value="es">Español</option>
       <option value="en">English</option>
     </select>
-    <span id="dirty" class="tag tag-outline hidden">unsaved edits</span>
-    <button id="changesOpen" class="ghost hidden" title="Everything you've changed so far">Changes <span id="changesCount" class="fieldhint">(0)</span></button>
-    <button id="searchOpen" class="ghost icon hidden" title="Search everything (Ctrl+K)" aria-label="Search">
+    <span id="dirty" class="tag tag-outline hidden" data-i18n="nav.unsaved">unsaved edits</span>
+    <button id="changesOpen" class="ghost hidden" data-i18n="nav.changes" data-i18n-title="nav.changesTitle" title="Everything you've changed so far">Changes <span id="changesCount" class="fieldhint">(0)</span></button>
+    <button id="searchOpen" class="ghost icon hidden" data-i18n-title="nav.searchTitle" data-i18n-aria="nav.search" title="Search everything (Ctrl+K)" aria-label="Search">
       <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><circle cx="112" cy="112" r="72"/><line x1="164" y1="164" x2="216" y2="216" stroke-linecap="round"/></svg>
     </button>
-    <button id="undo" class="ghost icon hidden" disabled title="Undo the last edit (Ctrl+Z)" aria-label="Undo">
+    <button id="undo" class="ghost icon hidden" disabled data-i18n-title="nav.undoTitle" data-i18n-aria="nav.undo" title="Undo the last edit (Ctrl+Z)" aria-label="Undo">
       <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M64 96 L32 96 L32 64" stroke-linecap="round" stroke-linejoin="round"/><path d="M32 96 C64 40 176 32 208 96 C232 144 200 200 144 200 L104 200" stroke-linecap="round"/></svg>
     </button>
-    <button id="redo" class="ghost icon hidden" disabled title="Redo (Ctrl+Y)" aria-label="Redo">
+    <button id="redo" class="ghost icon hidden" disabled data-i18n-title="nav.redoTitle" data-i18n-aria="nav.redo" title="Redo (Ctrl+Y)" aria-label="Redo">
       <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M192 96 L224 96 L224 64" stroke-linecap="round" stroke-linejoin="round"/><path d="M224 96 C192 40 80 32 48 96 C24 144 56 200 112 200 L152 200" stroke-linecap="round"/></svg>
     </button>
-    <button id="pick" class="ghost">Open a save…</button>
-    <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
-    <button id="backup" class="ghost hidden" title="Download the file exactly as you opened it, with no edits">Download original</button>
-    <button id="write" class="primary hidden" disabled>
+    <button id="pick" class="ghost" data-i18n="nav.open">Open a save…</button>
+    <button id="reload" class="ghost hidden" data-i18n="nav.revert" data-i18n-title="nav.revertTitle" title="Discard every edit and go back to the file you opened">Revert</button>
+    <button id="backup" class="ghost hidden" data-i18n="nav.backup" data-i18n-title="nav.backupTitle" title="Download the file exactly as you opened it, with no edits">Download original</button>
+    <button id="write" class="primary hidden" disabled data-i18n="nav.download">
       Download
       <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16"><path d="M128 40 L128 160" stroke-linecap="round"/><path d="M80 112 L128 160 L176 112" stroke-linecap="round" stroke-linejoin="round"/><path d="M48 200 L208 200" stroke-linecap="round"/></svg>
     </button>
@@ -44,28 +44,28 @@
 
 <div id="searchOverlay" class="modal-overlay hidden">
   <div class="modal searchmodal" role="dialog" aria-modal="true">
-    <input type="search" id="searchInput" placeholder="Search variables, switches, items, species, moves, fields…" autocomplete="off">
+    <input type="search" id="searchInput" data-i18n-placeholder="search.placeholder" placeholder="Search variables, switches, items, species, moves, fields…" autocomplete="off">
     <ul id="searchResults" class="searchresults"></ul>
   </div>
 </div>
 
 <div id="onboarding">
-  <p class="dz-page-title">Pokémon Z <span>save editor</span></p>
+  <p class="dz-page-title">Pokémon Z <span data-i18n="app.brand">save editor</span></p>
   <section id="dropzone" class="dropzone">
     <svg class="dz-icon" width="40" height="40" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="10"><rect x="40" y="96" width="176" height="120" rx="12"/><path d="M40 96 L92 40 L164 40 L216 96" stroke-linecap="round" stroke-linejoin="round"/><line x1="128" y1="128" x2="128" y2="180" stroke-linecap="round"/><polyline points="104,156 128,180 152,156" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h2>Drop a save file here</h2>
-    <p>or <button id="pick2" class="linkish">choose one</button></p>
-    <p class="dz-note">
+    <h2 data-i18n="onboarding.drop">Drop a save file here</h2>
+    <p data-i18n="onboarding.or">or <button id="pick2" class="linkish" data-i18n="onboarding.choose">choose one</button></p>
+    <p class="dz-note" data-i18n-html="onboarding.whereHtml">
       Saves normally live in <code>%USERPROFILE%\Saved Games\Pokemon Z</code> —
       <code>Game.rxdata</code>, <code>Game_2.rxdata</code>, and so on.
     </p>
-    <p class="dz-note">
+    <p class="dz-note" data-i18n="onboarding.privacy">
       Everything runs in your browser. The file is never uploaded, and this page
       only ever sees what you hand it.
     </p>
     <p id="dataStatus" class="dz-note"></p>
   </section>
-  <p class="dz-intro">
+  <p class="dz-intro" data-i18n-html="onboarding.introHtml">
     A save editor for the <strong>Pokémon Z</strong> fangame: open a save file to view and
     edit your trainer, party, boxes, bag, and every variable and switch the game tracks —
     level up a Pokémon, fix its IVs, add items, and more — then download the edited file
@@ -78,24 +78,24 @@
 </div>
 
 <nav class="tabs hidden">
-  <button data-tab="gamestate" class="active" id="tabGameState">Game state</button>
-  <button data-tab="trainer">Trainer</button>
-  <button data-tab="world">World</button>
-  <button data-tab="options">Options</button>
-  <button data-tab="dex">Pokédex</button>
-  <button data-tab="bag">Bag</button>
-  <button data-tab="party">Party &amp; Boxes</button>
-  <button data-tab="raw">Raw tree</button>
+  <button data-tab="gamestate" class="active" data-i18n="tab.gamestate">Game state</button>
+  <button data-tab="trainer" data-i18n="tab.trainer">Trainer</button>
+  <button data-tab="world" data-i18n="tab.world">World</button>
+  <button data-tab="options" data-i18n="tab.options">Options</button>
+  <button data-tab="dex" data-i18n="tab.dex">Pokédex</button>
+  <button data-tab="bag" data-i18n="tab.bag">Bag</button>
+  <button data-tab="party" data-i18n="tab.party">Party &amp; Boxes</button>
+  <button data-tab="raw" data-i18n="tab.raw">Raw tree</button>
 </nav>
 
 <main class="hidden">
   <div class="panel" data-panel="gamestate">
-    <p class="hint" id="gsHint"></p>
+    <p class="hint" data-i18n="gamestate.hint"></p>
     <div class="controls">
-      <input type="search" id="gsFilter">
+      <input type="search" id="gsFilter" data-i18n-placeholder="gamestate.search">
       <select id="gsGroup"></select>
-      <label class="check"><input type="checkbox" id="gsOnlySet" checked><span class="switchbtn"></span> <span id="gsOnlySetLabel"></span></label>
-      <label class="check"><input type="checkbox" id="gsShowDead"><span class="switchbtn"></span> <span id="gsShowDeadLabel"></span></label>
+      <label class="check"><input type="checkbox" id="gsOnlySet" checked><span class="switchbtn"></span> <span data-i18n="gamestate.onlySet"></span></label>
+      <label class="check"><input type="checkbox" id="gsShowDead"><span class="switchbtn"></span> <span data-i18n="gamestate.showDead"></span></label>
       <span id="gsCount" class="count"></span>
     </div>
     <div id="gsList"></div>
@@ -105,93 +105,93 @@
   <div class="panel hidden" data-panel="world"><div id="worldBody"></div></div>
   <div class="panel hidden" data-panel="options"><div id="optionsBody"></div></div>
   <div class="panel hidden" data-panel="dex">
-    <p class="hint">Which species this save has seen and owned. Marking a species seen or owned here only changes the Pokédex record, not what you actually have.</p>
+    <p class="hint" data-i18n="dex.hint">Which species this save has seen and owned. Marking a species seen or owned here only changes the Pokédex record, not what you actually have.</p>
     <div class="controls">
-      <input type="search" id="dexFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="dexOnlyMissing"><span class="switchbtn"></span> Only missing seen or owned</label>
+      <input type="search" id="dexFilter" data-i18n-placeholder="dex.filter" placeholder="Filter by number or name…">
+      <label class="check"><input type="checkbox" id="dexOnlyMissing"><span class="switchbtn"></span> <span data-i18n="dex.onlyMissing">Only missing seen or owned</span></label>
       <span id="dexCount" class="count"></span>
-      <button id="dexMarkSeen" class="tiny">Mark all seen</button>
-      <button id="dexMarkOwned" class="tiny">Mark all owned</button>
+      <button id="dexMarkSeen" class="tiny" data-i18n="dex.markSeen">Mark all seen</button>
+      <button id="dexMarkOwned" class="tiny" data-i18n="dex.markOwned">Mark all owned</button>
     </div>
     <div id="dexList"></div>
   </div>
   <div class="panel hidden" data-panel="bag">
     <details id="addItemBox" class="card addcard">
-      <summary>Add an item</summary>
+      <summary data-i18n="bag.add">Add an item</summary>
       <div class="addgrid">
-        <label class="wide">Item
-          <input type="search" id="addItemText2" list="itemList" placeholder="Type a name or number…" autocomplete="off">
+        <label class="wide" data-i18n="bag.addItem">Item
+          <input type="search" id="addItemText2" list="itemList" data-i18n-placeholder="common.typeNameOrNumber" placeholder="Type a name or number…" autocomplete="off">
         </label>
-        <label>Quantity <input type="number" id="addItemQty" value="1" min="1" max="999"></label>
+        <label data-i18n="bag.addQty">Quantity <input type="number" id="addItemQty" value="1" min="1" max="999"></label>
       </div>
       <p class="hint" id="addItemPreview"></p>
       <div class="monactions">
-        <button id="addItemGo" class="primary">Add to bag</button>
-        <span class="note">Goes into the pocket the game itself uses for that item.</span>
+        <button id="addItemGo" class="primary" data-i18n="bag.addGo">Add to bag</button>
+        <span class="note" data-i18n="bag.addNote">Goes into the pocket the game itself uses for that item.</span>
       </div>
     </details>
     <div id="bagBody"></div>
   </div>
   <div class="panel hidden" data-panel="party">
     <details id="addBox" class="card addcard">
-      <summary>Add a Pokémon</summary>
+      <summary data-i18n="party.add">Add a Pokémon</summary>
       <div class="addgrid">
-        <label class="wide">Species
-          <input type="search" id="addSpeciesText" list="speciesList" placeholder="Type a name or number…" autocomplete="off">
+        <label class="wide" data-i18n="party.species">Species
+          <input type="search" id="addSpeciesText" list="speciesList" data-i18n-placeholder="common.typeNameOrNumber" placeholder="Type a name or number…" autocomplete="off">
           <datalist id="speciesList"></datalist>
         </label>
-        <label>Level <input type="number" id="addLevel" value="5" min="1" max="100"></label>
-        <label>Nickname <input type="text" id="addNick" placeholder="(species name)"></label>
-        <label class="wide">Held item
-          <input type="search" id="addItemText" list="itemList" placeholder="(none)" autocomplete="off">
+        <label data-i18n="party.level">Level <input type="number" id="addLevel" value="5" min="1" max="100"></label>
+        <label data-i18n="party.nickname">Nickname <input type="text" id="addNick" data-i18n-placeholder="party.nicknamePlaceholder" placeholder="(species name)"></label>
+        <label class="wide" data-i18n="party.heldItem">Held item
+          <input type="search" id="addItemText" list="itemList" data-i18n-placeholder="party.noneParen" placeholder="(none)" autocomplete="off">
           <datalist id="itemList"></datalist>
         </label>
-        <label>Goes to
+        <label data-i18n="party.goesTo">Goes to
           <select id="addTarget">
-            <option value="auto">Party, else first free box</option>
-            <option value="party">Party</option>
-            <option value="box">A specific box</option>
+            <option value="auto" data-i18n="party.targetAuto">Party, else first free box</option>
+            <option value="party" data-i18n="party.targetParty">Party</option>
+            <option value="box" data-i18n="party.targetBox">A specific box</option>
           </select>
         </label>
-        <label id="addBoxWrap" class="hidden">Box <select id="addBoxNum"></select></label>
-        <label>Shiny
-          <select id="addShiny"><option value="">Leave to chance</option><option value="1">Yes</option><option value="0">No</option></select>
+        <label id="addBoxWrap" class="hidden" data-i18n="party.box">Box <select id="addBoxNum"></select></label>
+        <label data-i18n="party.shiny">Shiny
+          <select id="addShiny"><option value="" data-i18n="party.leaveToChance">Leave to chance</option><option value="1" data-i18n="common.yes">Yes</option><option value="0" data-i18n="common.no">No</option></select>
         </label>
-        <label>Gender
-          <select id="addGender"><option value="">From species</option><option value="0">Male</option><option value="1">Female</option></select>
+        <label data-i18n="party.gender">Gender
+          <select id="addGender"><option value="" data-i18n="party.fromSpecies">From species</option><option value="0" data-i18n="party.male">Male</option><option value="1" data-i18n="party.female">Female</option></select>
         </label>
-        <label>Nature <select id="addNature"></select></label>
-        <label>Ability
-          <select id="addAbility"><option value="">Default</option><option value="0">First</option><option value="1">Second</option><option value="2">Hidden</option></select>
+        <label data-i18n="party.nature">Nature <select id="addNature"></select></label>
+        <label data-i18n="party.ability">Ability
+          <select id="addAbility"><option value="" data-i18n="party.abilityDefault">Default</option><option value="0" data-i18n="party.abilityFirst">First</option><option value="1" data-i18n="party.abilitySecond">Second</option><option value="2" data-i18n="party.abilityHidden">Hidden</option></select>
         </label>
-        <label class="wide">IVs <span class="fieldhint">(0–31 each)</span>
+        <label class="wide" data-i18n="party.ivs">IVs <span class="fieldhint" data-i18n="party.ivsHint">(0–31 each)</span>
           <span class="statrow" id="addIVs"></span>
           <span class="monactions">
-            <button type="button" id="ivMax" class="tiny">Max</button>
-            <button type="button" id="ivRandom" class="tiny">Random</button>
+            <button type="button" id="ivMax" class="tiny" data-i18n="party.ivMax">Max</button>
+            <button type="button" id="ivRandom" class="tiny" data-i18n="party.ivRandom">Random</button>
           </span>
         </label>
-        <label class="wide">EVs <span class="fieldhint">(0–252 each, 510 total)</span>
+        <label class="wide" data-i18n="party.evs">EVs <span class="fieldhint" data-i18n="party.evsHint">(0–252 each, 510 total)</span>
           <span class="statrow" id="addEVs"></span>
         </label>
-        <label class="check"><input type="checkbox" id="addEgg"><span class="switchbtn"></span> Create as an egg</label>
+        <label class="check"><input type="checkbox" id="addEgg"><span class="switchbtn"></span> <span data-i18n="party.asEgg">Create as an egg</span></label>
       </div>
       <p class="hint" id="addPreview"></p>
       <div class="monactions">
-        <button id="addGo" class="primary">Add to save</button>
+        <button id="addGo" class="primary" data-i18n="party.addGo">Add to save</button>
       </div>
-      <p class="note">Moves default to the level-up set the game would give it, and stats are computed with the game's own formulas. Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</p>
+      <p class="note" data-i18n="party.addNote">Moves default to the level-up set the game would give it, and stats are computed with the game's own formulas. Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</p>
     </details>
     <div class="controls">
-      <input type="search" id="partyFilter" placeholder="Filter by species, nickname, held item or a known move…">
-      <label class="check"><input type="checkbox" id="partyShinyOnly"><span class="switchbtn"></span> Shiny only</label>
-      <label>Level <input type="number" id="partyLevelMin" min="1" max="100" placeholder="min" style="width:70px"> – <input type="number" id="partyLevelMax" min="1" max="100" placeholder="max" style="width:70px"></label>
+      <input type="search" id="partyFilter" data-i18n-placeholder="party.filter" placeholder="Filter by species, nickname, held item or a known move…">
+      <label class="check"><input type="checkbox" id="partyShinyOnly"><span class="switchbtn"></span> <span data-i18n="party.shinyOnly">Shiny only</span></label>
+      <label data-i18n="party.level">Level <input type="number" id="partyLevelMin" min="1" max="100" data-i18n-placeholder="party.min" placeholder="min" style="width:70px"> – <input type="number" id="partyLevelMax" min="1" max="100" data-i18n-placeholder="party.max" placeholder="max" style="width:70px"></label>
     </div>
     <div id="partyBody"></div>
   </div>
 
   <div class="panel hidden" data-panel="raw">
-    <p class="hint">Every one of the 15 Marshal streams a save is made of, exactly as stored. Known fields are labeled; anything else shows its Ruby type.</p>
+    <p class="hint" data-i18n="raw.hint">Every one of the 15 Marshal streams a save is made of, exactly as stored. Known fields are labeled; anything else shows its Ruby type.</p>
     <div id="tree" class="tree"></div>
   </div>
 </main>

@@ -2,6 +2,7 @@
 // (text speed, battle style, window size, volumes, difficulty, fonts).
 
 import { $, el } from '../dom.js';
+import { t } from '../../i18n.js';
 import { api, fieldGrid } from '../session.js';
 
 export async function loadOptions() {
@@ -10,7 +11,7 @@ export async function loadOptions() {
   body.innerHTML = '';
 
   const card = el('div', 'card');
-  card.append(el('h3', null, 'Options'));
+  card.append(el('h3', null, t('options.title')));
   card.append(fieldGrid(fields));
   body.append(card);
 }

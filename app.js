@@ -15,7 +15,7 @@ import { loadWorld } from './src/ui/tabs/world.js';
 import { loadOptions } from './src/ui/tabs/options.js';
 import { loadDex, initDexTab } from './src/ui/tabs/dex.js';
 import { loadBag, initBagAddForm } from './src/ui/tabs/bag.js';
-import { loadParty, initAddForm } from './src/ui/tabs/party.js';
+import { loadParty, initAddForm, fillNatureOptions } from './src/ui/tabs/party.js';
 import { loadTree } from './src/ui/tabs/rawTree.js';
 
 // --- summary -------------------------------------------------------------------
@@ -92,8 +92,8 @@ async function revertChange(entry, changes) {
   const idx = changes.indexOf(entry);
   const laterCount = changes.length - idx - 1;
   if (laterCount > 0 && !(await confirmModal(
-    `Reverting "${entry.desc}" will also undo ${laterCount} more recent change${laterCount === 1 ? '' : 's'}. Continue?`,
-    { confirmLabel: 'Revert', danger: true },
+    t(laterCount === 1 ? 'changes.confirmOne' : 'changes.confirm', { desc: entry.desc, n: laterCount }),
+    { confirmLabel: t('common.revert'), danger: true },
   ))) return;
   try {
     const r = await api('/api/changes/revert', {
@@ -103,7 +103,7 @@ async function revertChange(entry, changes) {
     setDirty(r.dirty);
     await refreshAll();
     await refreshUndoButtons();
-    toast('Reverted');
+    toast(t('toast.reverted'));
   } catch (e) { toast(e.message, true); }
 }
 
@@ -118,17 +118,17 @@ function openChanges() {
   const changes = latestChanges;
   const { box, close } = openModal({ onClose: () => {} });
   box.append(el('h3', null, changes.length
-    ? `${changes.length} change${changes.length === 1 ? '' : 's'} so far`
-    : 'No changes yet'));
+    ? t(changes.length === 1 ? 'changes.titleOne' : 'changes.title', { n: changes.length })
+    : t('changes.none')));
   if (!changes.length) {
-    box.append(el('p', null, 'Every edit you make shows up here, and can be reverted on its own.'));
+    box.append(el('p', null, t('changes.blurb')));
   } else {
     const list = el('ul', 'changelist');
     for (const c of changes) {
       const li = el('li');
       li.append(el('span', 'cdesc', c.desc));
       if (c.before !== undefined) li.append(el('span', 'cdiff', `${c.before} → ${c.after}`));
-      const revert = el('button', 'tiny danger', 'Revert');
+      const revert = el('button', 'tiny danger', t('common.revert'));
       revert.onclick = async () => { close(); await revertChange(c, changes); };
       li.append(revert);
       list.append(li);
@@ -136,7 +136,7 @@ function openChanges() {
     box.append(list);
   }
   const actions = el('div', 'modal-actions');
-  const done = el('button', 'ghost', 'Close');
+  const done = el('button', 'ghost', t('common.close'));
   done.onclick = () => close();
   actions.append(done);
   box.append(actions);
@@ -173,7 +173,7 @@ const loaded = new Set();
 onRecalculated(async (statsChanged) => {
   if (current === 'party') {
     await loadParty();
-    if (statsChanged) toast('Stats recalculated');
+    if (statsChanged) toast(t('toast.recalculated'));
   }
 });
 
@@ -236,7 +236,7 @@ async function buildSearchIndex() {
     if (!label && !r.name) continue;
     const both = label && r.name && label !== r.name ? `${label} · ${r.name}` : (label || r.name);
     entries.push({
-      cat: r.kind === 'switch' ? 'Switch' : 'Variable',
+      cat: t(r.kind === 'switch' ? 'gamestate.switch' : 'gamestate.variable'),
       label: `${r.index} — ${both}`,
       action: async () => {
         await showTab('gamestate');
@@ -248,7 +248,7 @@ async function buildSearchIndex() {
   const items = await ensureItemOptions();
   for (const it of items) {
     entries.push({
-      cat: 'Item', label: it.label,
+      cat: t('search.item'), label: it.label,
       action: async () => {
         await showTab('bag');
         const row = [...document.querySelectorAll('#bagBody tr')].find((r) => r.dataset.itemId === String(it.id));
@@ -264,7 +264,7 @@ async function buildSearchIndex() {
   const species = await ensureKindOptions('species');
   for (const sp of species) {
     entries.push({
-      cat: 'Species', label: sp.label,
+      cat: t('search.species'), label: sp.label,
       action: async () => {
         await showTab('dex');
         $('#dexFilter').value = stripId(sp.label);
@@ -276,7 +276,7 @@ async function buildSearchIndex() {
   const moves = await ensureKindOptions('moves');
   for (const mv of moves) {
     entries.push({
-      cat: 'Move', label: mv.label,
+      cat: t('search.move'), label: mv.label,
       action: async () => {
         await showTab('party');
         $('#partyFilter').value = stripId(mv.label);
@@ -288,9 +288,9 @@ async function buildSearchIndex() {
   const [trainerV, worldV, playerV, settingsV] = await Promise.all([
     api('/api/trainer'), api('/api/world'), api('/api/player'), api('/api/settings'),
   ]);
-  for (const f of trainerV.fields) entries.push({ cat: 'Trainer field', label: f.label, action: jumpToField('trainer', '#trainerBody', f.label) });
-  for (const f of [...worldV.fields, ...playerV.fields]) entries.push({ cat: 'World field', label: f.label, action: jumpToField('world', '#worldBody', f.label) });
-  for (const f of settingsV.fields) entries.push({ cat: 'Options field', label: f.label, action: jumpToField('options', '#optionsBody', f.label) });
+  for (const f of trainerV.fields) entries.push({ cat: t('search.trainerField'), label: f.label, action: jumpToField('trainer', '#trainerBody', f.label) });
+  for (const f of [...worldV.fields, ...playerV.fields]) entries.push({ cat: t('search.worldField'), label: f.label, action: jumpToField('world', '#worldBody', f.label) });
+  for (const f of settingsV.fields) entries.push({ cat: t('search.optionsField'), label: f.label, action: jumpToField('options', '#optionsBody', f.label) });
 
   return entries;
 }
@@ -317,11 +317,11 @@ function renderSearchResults(query) {
     .slice(0, 40);
   searchActiveIdx = searchShown.length ? 0 : -1;
   if (!q) {
-    list.append(el('li', 'sempty', 'Type to search variables, switches, items, species, moves and labelled fields.'));
+    list.append(el('li', 'sempty', t('search.prompt')));
     return;
   }
   if (!searchShown.length) {
-    list.append(el('li', 'sempty', 'No matches.'));
+    list.append(el('li', 'sempty', t('search.none')));
     return;
   }
   searchShown.forEach((e, i) => {
@@ -345,7 +345,7 @@ async function openSearch() {
   $('#searchResults').innerHTML = '';
   input.focus();
   if (!searchIndex) {
-    $('#searchResults').append(el('li', 'sempty', 'Loading…'));
+    $('#searchResults').append(el('li', 'sempty', t('search.loading')));
     try { searchIndex = await buildSearchIndex(); } catch (e) { toast(e.message, true); closeSearch(); return; }
   }
   renderSearchResults(input.value);
@@ -378,7 +378,7 @@ function confirmChanges(changes, warnings) {
   return new Promise((resolve) => {
     if (!changes.length && !warnings.length) { resolve(true); return; }
     const { box, close } = openModal({ onClose: (r) => resolve(r === true) });
-    box.append(el('h3', null, `${changes.length} change${changes.length === 1 ? '' : 's'} will be written to the file`));
+    box.append(el('h3', null, t(changes.length === 1 ? 'changes.willWriteOne' : 'changes.willWrite', { n: changes.length })));
     if (warnings.length) {
       const warnBox = el('ul', 'warnlist');
       for (const w of warnings) warnBox.append(el('li', null, w));
@@ -393,8 +393,8 @@ function confirmChanges(changes, warnings) {
     }
     box.append(list);
     const actions = el('div', 'modal-actions');
-    const cancel = el('button', 'ghost', 'Cancel');
-    const go = el('button', 'primary', 'Download');
+    const cancel = el('button', 'ghost', t('common.cancel'));
+    const go = el('button', 'primary', t('nav.download'));
     actions.append(cancel, go);
     box.append(actions);
     cancel.onclick = () => close(false);
@@ -407,21 +407,21 @@ function confirmChanges(changes, warnings) {
 
 /** Offers to bring back a draft found for the file that was just opened. */
 async function offerDraftRestore(draft) {
-  const when = new Date(draft.updatedAt).toLocaleString();
-  if (await confirmModal(`Found unsaved edits for this file from ${when}. Restore them?`, { confirmLabel: 'Restore' })) {
+  const when = new Date(draft.updatedAt).toLocaleString(lang());
+  if (await confirmModal(t('confirm.draft', { when }), { confirmLabel: t('common.restore') })) {
     const summary = restoreDraft(draft.bytes);
     renderSummary(summary);
     setDirty(true);
     await refreshAll();
     await refreshUndoButtons();
-    toast('Restored your unsaved edits');
+    toast(t('toast.draftRestored'));
   } else {
     await clearDraft(getCurrentFileName());
   }
 }
 
 async function openFile(file) {
-  if (dirty && !(await confirmModal('You have unsaved edits. Discard them and open another file?', { confirmLabel: 'Discard', danger: true }))) return;
+  if (dirty && !(await confirmModal(t('confirm.openDirty'), { confirmLabel: t('common.discard'), danger: true }))) return;
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const summary = openBytes(file.name, bytes);
@@ -440,14 +440,14 @@ async function openFile(file) {
     setDirty(false);
     await refreshAll();
     await refreshUndoButtons();
-    toast(`Opened ${file.name}`);
+    toast(t('toast.opened', { name: file.name }));
 
     const hash = await hashBytes(bytes);
     setCurrentFile(file.name, hash);
     const draft = await loadDraft(file.name);
     if (draft && draft.hash === hash && draft.bytes?.length) await offerDraftRestore(draft);
   } catch (e) {
-    toast(`Could not read ${file.name}: ${e.message}`, true);
+    toast(t('toast.openFailed', { name: file.name, msg: e.message }), true);
   }
 }
 
@@ -476,14 +476,14 @@ addEventListener('drop', (e) => {
 });
 
 $('#reload').onclick = async () => {
-  if (dirty && !(await confirmModal('Discard every edit and go back to the file you opened?', { confirmLabel: 'Discard', danger: true }))) return;
+  if (dirty && !(await confirmModal(t('confirm.revertAll'), { confirmLabel: t('common.discard'), danger: true }))) return;
   const r = await api('/api/reload', { body: '{}' });
   renderSummary(r.open);
   setDirty(false);
   await refreshAll();
   await refreshUndoButtons();
   await discardDraft();
-  toast('Reverted to the file you opened');
+  toast(t('toast.revertedAll'));
 };
 
 $('#backup').onclick = async () => {
@@ -497,7 +497,7 @@ $('#backup').onclick = async () => {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast(`Downloaded a backup as original-${name}, unchanged`);
+    toast(t('toast.backup', { name }));
   } catch (e) { toast(e.message, true); }
 };
 
@@ -520,7 +520,7 @@ $('#write').onclick = async () => {
     await discardDraft();
     document.querySelectorAll('.changed').forEach((n) => n.classList.remove('changed'));
     trackChanges([]);
-    toast(`Downloaded ${name} — if your browser saved it as "${name} (1)" or similar, rename it back to "${name}" before copying it over your save`);
+    toast(t('toast.downloaded', { name }));
   } catch (e) { toast(e.message, true); }
 };
 
@@ -531,7 +531,7 @@ $('#undo').onclick = async () => {
     setDirty(r.dirty);
     await refreshAll();
     await refreshUndoButtons();
-    toast('Undid the last edit');
+    toast(t('toast.undone'));
   } catch (e) { toast(e.message, true); }
 };
 
@@ -542,7 +542,7 @@ $('#redo').onclick = async () => {
     setDirty(r.dirty);
     await refreshAll();
     await refreshUndoButtons();
-    toast('Redid the last edit');
+    toast(t('toast.redone'));
   } catch (e) { toast(e.message, true); }
 };
 
@@ -599,44 +599,50 @@ addEventListener('keydown', (e) => {
 });
 
 // --- language ------------------------------------------------------------------
-// Scoped to the header, the summary and the Game state tab. The other six tabs
-// still hold English literals; converting them all at once would be a large
-// mechanical diff with no user-visible payoff beyond this feature.
+// Every static string in index.html is marked with a data-i18n* attribute and
+// swept from here; everything a tab builds at runtime calls t() itself and is
+// redrawn when the language changes.
 
-/** Push the current language into every static bit of chrome. */
+// What the bundle loader ended up with, kept so the line under the dropzone can
+// be redrawn in the other language without reloading the bundle.
+let dataLoaded = false;
+let dataError = null;
+
+function showDataStatus() {
+  if (dataError) { $('#dataStatus').textContent = t('onboarding.dataFailed', { msg: dataError }); return; }
+  if (!dataLoaded) return;
+  $('#dataStatus').textContent = t('onboarding.dataLoaded', labelCounts());
+}
+
+/**
+ * Replace the element's own text without disturbing the markup it wraps - a
+ * count chip, an inline SVG, the <input> a <label> is wrapped around. Only the
+ * first text node that holds anything is rewritten, and its surrounding
+ * whitespace is kept so the layout does not shift.
+ */
+function setLabelText(node, text) {
+  const own = [...node.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+  if (!own) { node.textContent = text; return; }
+  own.nodeValue = own.nodeValue.replace(/\S[\s\S]*\S|\S/, text);
+}
+
+/** Push the current language into every static bit of markup. */
 function applyLanguage() {
-  const setText = (sel, key) => { const n = $(sel); if (n) n.textContent = t(key); };
-  const setAttr = (sel, attr, key) => { const n = $(sel); if (n) n.setAttribute(attr, t(key)); };
-
   document.documentElement.lang = lang();
 
-  setText('#dirty', 'nav.unsaved');
-  setAttr('#changesOpen', 'title', 'nav.changesTitle');
-  setAttr('#searchOpen', 'title', 'nav.searchTitle');
-  setAttr('#searchOpen', 'aria-label', 'nav.search');
-  setAttr('#undo', 'title', 'nav.undoTitle');
-  setAttr('#undo', 'aria-label', 'nav.undo');
-  setAttr('#redo', 'title', 'nav.redoTitle');
-  setAttr('#redo', 'aria-label', 'nav.redo');
-  setText('#pick', 'nav.open');
-  setText('#reload', 'nav.revert');
-  setAttr('#reload', 'title', 'nav.revertTitle');
-  setText('#backup', 'nav.backup');
-  setAttr('#backup', 'title', 'nav.backupTitle');
-  setAttr('#langPick', 'aria-label', 'nav.language');
+  for (const n of document.querySelectorAll('[data-i18n]')) setLabelText(n, t(n.dataset.i18n));
+  // Two paragraphs carry <code>/<strong> runs, so their whole markup is the string.
+  for (const n of document.querySelectorAll('[data-i18n-html]')) n.innerHTML = t(n.dataset.i18nHtml);
+  for (const n of document.querySelectorAll('[data-i18n-placeholder]')) n.placeholder = t(n.dataset.i18nPlaceholder);
+  for (const n of document.querySelectorAll('[data-i18n-title]')) n.title = t(n.dataset.i18nTitle);
+  for (const n of document.querySelectorAll('[data-i18n-aria]')) n.setAttribute('aria-label', t(n.dataset.i18nAria));
 
-  // "Changes" keeps its count span, so only the leading text node is replaced.
-  const changes = $('#changesOpen');
-  if (changes?.firstChild) changes.firstChild.nodeValue = `${t('nav.changes')} `;
-  // Same for Download, which carries an inline SVG.
-  const write = $('#write');
-  if (write?.firstChild) write.firstChild.nodeValue = `\n      ${t('nav.download')}\n      `;
+  // Every boolean pill draws its On/Off text from these two, in style.css.
+  document.documentElement.style.setProperty('--switch-on', `"${t('common.on')}"`);
+  document.documentElement.style.setProperty('--switch-off', `"${t('common.off')}"`);
 
-  setText('#tabGameState', 'tab.gamestate');
-  setText('#gsHint', 'gamestate.hint');
-  setText('#gsOnlySetLabel', 'gamestate.onlySet');
-  setText('#gsShowDeadLabel', 'gamestate.showDead');
-  setAttr('#gsFilter', 'placeholder', 'gamestate.search');
+  fillNatureOptions();
+  showDataStatus();
 }
 
 $('#langPick').value = lang();
@@ -658,16 +664,13 @@ addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
   try {
     await loadData();
   } catch (e) {
-    $('#dataStatus').textContent = `Could not load the game data bundle: ${e.message}`;
-    $('#banner').textContent =
-      'data/gamedata.json is missing, so names and Pokémon creation are unavailable. '
-      + 'Run: node tools/build-data.js "<path to the Pokémon Z folder>"';
+    dataError = e.message;
+    showDataStatus();
+    $('#banner').textContent = t('onboarding.dataBanner');
     $('#banner').classList.remove('hidden', 'bad');
     $('#banner').classList.add('bad');
     return;
   }
-  const c = labelCounts();
-  $('#dataStatus').textContent =
-    `Labels loaded: ${c.variables} variables, ${c.switches} switches, `
-    + `${c.species} species, ${c.items} items, ${c.moves} moves, ${c.maps} maps.`;
+  dataLoaded = true;
+  showDataStatus();
 })();
