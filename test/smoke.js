@@ -19,6 +19,8 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeChecker, SAVE_DIR, listSaves } from './helpers.js';
+import { en } from '../src/locales/en.js';
+import { es } from '../src/locales/es.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = 'pkmnz-save-editor';
@@ -82,9 +84,14 @@ try {
   check('no console errors', consoleErrors.length === 0, consoleErrors.join(' | '));
   check('the drop zone is visible', await page.locator('#dropzone').isVisible());
 
-  const status = await page.locator('#dataStatus').textContent();
-  check('the game data bundle loaded', /Labels loaded:/.test(status || ''), status || '(empty)');
-  const species = Number(/(\d+) species/.exec(status || '')?.[1] || 0);
+  // This line is localized and the page defaults to Spanish, so take the
+  // expected wording from the locale tables rather than hard-coding one
+  // language's copy - either is a pass, what matters is the counts.
+  const status = (await page.locator('#dataStatus').textContent()) || '';
+  const loadedPrefix = (tbl) => tbl['onboarding.dataLoaded'].split('{')[0];
+  check('the game data bundle loaded',
+    [en, es].some((tbl) => status.startsWith(loadedPrefix(tbl))), status || '(empty)');
+  const species = Number(/(\d+) (?:species|especies)/.exec(status)?.[1] || 0);
   check('the bundle has species in it', species > 900, `${species} species`);
   check('no error banner', !(await page.locator('#banner').isVisible()));
 
@@ -107,7 +114,10 @@ try {
     check('opening a save hides the drop zone', !(await page.locator('#dropzone').isVisible()));
     check('opening a save reveals the tabs', await page.locator('nav.tabs').isVisible());
     const summary = await page.locator('#summary').innerText();
-    check('the summary names the slot variable', /SLOT \(VAR 99\)/.test(summary), summary.split('\n').slice(0, 4).join(' '));
+    // Same reason as #dataStatus above: the sentence is localized, but it names
+    // variable 99 and the file it will be written to in either language.
+    check('the summary names the slot variable',
+      /\b99\b/.test(summary) && /\.rxdata/.test(summary), summary.split('\n').slice(0, 4).join(' '));
     const state = await page.locator('#gsList').innerText();
     check('the game state tab is described from the bundle',
       /Nuzlocke|obediencia|Amuleto/.test(state), state.split('\n').slice(0, 3).join(' '));
