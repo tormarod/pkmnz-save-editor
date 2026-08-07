@@ -1,10 +1,10 @@
 // UI language. The game itself is Spanish, so Spanish is the default; English
 // is here because the editor's chrome was written in it.
 //
-// Only the header, the summary and the Game state tab go through t() so far -
-// Party / Bag / Dex / Trainer / World / Raw still hold English literals. That
-// is deliberate: converting all seven tabs at once is a large mechanical diff
-// that would bury the feature.
+// Every string the editor itself writes goes through t() (UI text) or pick()
+// (the { es, en } pairs in schema.js and the annotation bundle). The only
+// English left is what the save engine throws as an Error message, which the
+// UI surfaces verbatim in a toast.
 
 import { es } from './locales/es.js';
 import { en } from './locales/en.js';
@@ -49,11 +49,13 @@ export function t(key, vars) {
 }
 
 /**
- * Pick the right side of an annotation's `{ es, en }` pair, falling back to
- * whichever one exists. Game content is Spanish-only for now, so this almost
- * always returns `es` - but it never returns blank.
+ * Pick the right side of an `{ es, en }` pair - an annotation from the bundle,
+ * or a field label from schema.js - falling back to whichever one exists. A
+ * plain string passes straight through, so a field with only one spelling (or
+ * one the schema does not name at all) still renders.
  */
 export function pick(entry) {
   if (!entry) return null;
+  if (typeof entry === 'string') return entry;
   return entry[current] || entry[current === 'es' ? 'en' : 'es'] || null;
 }

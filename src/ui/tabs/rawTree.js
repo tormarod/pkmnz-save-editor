@@ -2,28 +2,13 @@
 // no dedicated tab exposes yet.
 
 import { $, el } from '../dom.js';
+import { t } from '../../i18n.js';
 import { api, boundInput } from '../session.js';
 
-// Ruby/Marshal type glossary for the Raw tree tab, where every value is
-// labeled with its bare Marshal type name.
-const TYPE_GLOSSARY = {
-  nil: 'Ruby nil — "no value". Booleans and nil-by-default fields both read as this until something sets them.',
-  bool: 'A true/false value.',
-  int: 'A Fixnum — a plain integer.',
-  str: 'A Ruby String (text).',
-  float: 'A floating-point number.',
-  sym: 'A Ruby Symbol — an internal, code-facing name (like :some_name), not user-facing text.',
-  bignum: 'A Bignum — an integer too large for a Fixnum. Trainer IDs and similar values often show up here.',
-  array: 'A Ruby Array — an ordered list. Expand it to see its entries.',
-  hash: 'A Ruby Hash — a key/value map. Expand it to see its entries.',
-  obj: 'A Ruby object with named instance variables (ivars). Expand it to see its fields.',
-  userdef: 'Custom binary data the game serializes itself. Shown as raw bytes; not editable here.',
-  usrmarshal: 'An object with its own custom Marshal encoding.',
-  struct: 'A Ruby Struct — fixed, named fields, like a lightweight object.',
-  class: 'A reference to a Ruby class itself (rare in save data).',
-  module: 'A reference to a Ruby module (rare in save data).',
-  regexp: 'A compiled regular expression (rare in save data).',
-};
+// Ruby/Marshal types that have a glossary entry (raw.type.*) to hang off the
+// bare type name every value in this tab is labeled with.
+const GLOSSED = ['nil', 'bool', 'int', 'str', 'float', 'sym', 'bignum', 'array', 'hash',
+  'obj', 'userdef', 'usrmarshal', 'struct', 'class', 'module', 'regexp'];
 
 async function treeChildren(path) {
   return (await api('/api/tree', { body: JSON.stringify({ path }) })).children;
@@ -36,7 +21,7 @@ function treeNode(child, path) {
   self.append(tw);
   self.append(el('span', 'key', child.label));
   const ty = el('span', 'ty', child.type);
-  if (TYPE_GLOSSARY[child.type]) ty.title = TYPE_GLOSSARY[child.type];
+  if (GLOSSED.includes(child.type)) ty.title = t(`raw.type.${child.type}`);
   self.append(ty);
 
   if (child.scalar) {
@@ -66,7 +51,7 @@ function treeNode(child, path) {
       node.append(kids);
       try {
         for (const c of await treeChildren(path)) {
-          if (c.truncated) { kids.append(el('div', 'trunc', `…${c.truncated} more not shown`)); continue; }
+          if (c.truncated) { kids.append(el('div', 'trunc', t('raw.more', { n: c.truncated }))); continue; }
           kids.append(treeNode(c, [...path, c.step]));
         }
       } catch (e2) { kids.append(el('div', 'trunc', e2.message)); }

@@ -2,15 +2,16 @@
 // day care, Pokedex viewing state, phone) grouped into sections for readability.
 
 import { $, el } from '../dom.js';
+import { t } from '../../i18n.js';
 import { api, fieldGrid, ensureKindOptions } from '../session.js';
 
 const GROUPS = [
-  { title: 'Movement', fields: ['@bicycle', '@surfing', '@diving', '@sliding', '@fishing', '@runtoggle', '@bridge', '@runningShoes', '@snagMachine', '@repel'] },
-  { title: 'Day care', fields: ['@daycare', '@daycareEgg', '@daycareEggSteps'] },
-  { title: 'Pokédex', fields: ['@pokedexUnlocked', '@pokedexDex', '@pokedexIndex', '@pokedexMode'] },
-  { title: 'World & respawn', fields: ['@healingSpot', '@escapePoint', '@pokecenterMapId', '@visitedMaps', '@safariState', '@bugContestState'] },
-  { title: 'Phone', fields: ['@phoneNumbers', '@phoneTime'] },
-  { title: 'Progress', fields: ['@amuleto', '@shinyzador', '@flashUsed', '@seenStorageCreator', '@coins', '@sootsack', '@stepcount', '@happinessSteps', '@pokerusTime', '@safesave'] },
+  { title: 'world.movement', fields: ['@bicycle', '@surfing', '@diving', '@sliding', '@fishing', '@runtoggle', '@bridge', '@runningShoes', '@snagMachine', '@repel'] },
+  { title: 'world.daycare', fields: ['@daycare', '@daycareEgg', '@daycareEggSteps'] },
+  { title: 'world.dex', fields: ['@pokedexUnlocked', '@pokedexDex', '@pokedexIndex', '@pokedexMode'] },
+  { title: 'world.respawn', fields: ['@healingSpot', '@escapePoint', '@pokecenterMapId', '@visitedMaps', '@safariState', '@bugContestState'] },
+  { title: 'world.phone', fields: ['@phoneNumbers', '@phoneTime'] },
+  { title: 'world.progress', fields: ['@amuleto', '@shinyzador', '@flashUsed', '@seenStorageCreator', '@coins', '@sootsack', '@stepcount', '@happinessSteps', '@pokerusTime', '@safesave'] },
 ];
 
 export async function loadWorld() {
@@ -20,8 +21,8 @@ export async function loadWorld() {
   body.innerHTML = '';
 
   const pcard = el('div', 'card');
-  pcard.append(el('h3', null, 'Player position'));
-  pcard.append(el('p', 'hint', 'Not validated: an unvisited map or an out-of-bounds x/y can strand or crash the game.'));
+  pcard.append(el('h3', null, t('world.player')));
+  pcard.append(el('p', 'hint', t('world.playerHint')));
   pcard.append(fieldGrid(playerFields));
   body.append(pcard);
 
@@ -33,7 +34,7 @@ export async function loadWorld() {
     present.forEach((f) => grouped.add(f.ivar));
     if (!present.length) continue;
     const card = el('div', 'card');
-    card.append(el('h3', null, g.title));
+    card.append(el('h3', null, t(g.title)));
     card.append(fieldGrid(present));
     body.append(card);
   }
@@ -41,7 +42,7 @@ export async function loadWorld() {
   const leftover = fields.filter((f) => !grouped.has(f.ivar));
   if (leftover.length) {
     const card = el('div', 'card');
-    card.append(el('h3', null, 'Other'));
+    card.append(el('h3', null, t('world.other')));
     card.append(fieldGrid(leftover));
     body.append(card);
   }

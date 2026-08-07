@@ -3,6 +3,7 @@
 // and focus restored to whatever triggered the modal once it closes.
 
 import { el } from './dom.js';
+import { t } from '../i18n.js';
 
 function focusable(overlay) {
   return [...overlay.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')]
@@ -54,7 +55,7 @@ export function openModal({ onClose }) {
 }
 
 /** A yes/no confirmation dialog: a themeable, accessible replacement for window.confirm(). */
-export function confirmModal(message, { confirmLabel = 'Continue', cancelLabel = 'Cancel', danger = false } = {}) {
+export function confirmModal(message, { confirmLabel = t('common.continue'), cancelLabel = t('common.cancel'), danger = false } = {}) {
   return new Promise((resolve) => {
     const { box, close } = openModal({ onClose: (r) => resolve(r === true) });
     box.append(el('p', null, message));

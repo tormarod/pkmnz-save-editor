@@ -3,9 +3,10 @@
 // Save#set without any per-tab save logic.
 
 import {
-  SECTIONS, fieldInfo, NATURES, CLASS_FIELDS,
+  SECTIONS, fieldInfo, natureList, CLASS_FIELDS,
 } from './schema.js';
 import { labels, nameOf, tagsOf, entryOf } from './labels.js';
+import { t, pick } from './i18n.js';
 import { strToJs, floatText, getIvar as ivar } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 import {
@@ -25,17 +26,20 @@ export const OVERRIDE_FLAGS = ['@shinyflag', '@genderflag', '@abilityflag', '@na
 function derivedFor(name, d) {
   switch (name) {
     case '@genderflag':
-      return d.gender === null ? null : (d.gender === 1 ? '♀ Female' : '♂ Male');
+      return d.gender === null ? null : (d.gender === 1 ? `♀ ${t('party.female')}` : `♂ ${t('party.male')}`);
     case '@natureflag':
-      return NATURES[d.nature] ?? null;
+      return natureList()[d.nature] ?? null;
     case '@abilityflag':
-      return nameOf('abilities', d.ability) || (d.ability ? `ability ${d.ability}` : null);
+      return nameOf('abilities', d.ability) || (d.ability ? t('party.abilityN', { n: d.ability }) : null);
     case '@shinyflag':
-      return d.shiny ? '✨ Shiny' : 'Not shiny';
+      return d.shiny ? t('party.shinyTag') : t('party.notShiny');
     default:
       return null;
   }
 }
+
+/** Field metadata carries { es, en } pairs (see schema.js); the UI wants one language. */
+const pickOptions = (options) => options?.map((o) => ({ ...o, label: pick(o.label) }));
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
 const num = (v) => (typeof v === 'number' ? v : null);
@@ -96,7 +100,7 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
     out.push({
       index: i,
       name: named || null,
-      label: `${isSwitches ? 'Switch' : 'Variable'} ${i}${named ? ` "${named}"` : ''}`,
+      label: `${t(isSwitches ? 'gamestate.switch' : 'gamestate.variable')} ${i}${named ? ` "${named}"` : ''}`,
       tags: tagsOf(labelTable, i),
       type: untouchedSwitch ? 'bool' : typeOf(v),
       value: untouchedSwitch ? false : (isScalar(v) ? editValue(v) : null),
@@ -140,7 +144,7 @@ export function gameState(save, onlySet = false) {
       rows.set(id, {
         index: id,
         name: named || null,
-        label: `${isSwitch ? 'Switch' : 'Variable'} ${id}${named ? ` "${named}"` : ''}`,
+        label: `${t(isSwitch ? 'gamestate.switch' : 'gamestate.variable')} ${id}${named ? ` "${named}"` : ''}`,
         tags: tagsOf(table, id),
         type: isSwitch ? 'bool' : 'nil',
         value: isSwitch ? false : null,
@@ -175,10 +179,10 @@ function describeField(obj, base, cls, name) {
   const info = fieldInfo(cls, name);
   return {
     ivar: name,
-    label: info.label,
-    note: info.note,
+    label: pick(info.label),
+    note: pick(info.note),
     kind: info.kind,
-    options: info.options,
+    options: pickOptions(info.options),
     type: typeOf(v),
     value: isScalar(v) ? editValue(v) : null,
     scalar: isScalar(v),
@@ -234,7 +238,7 @@ export function player(save) {
   const mapId = save.section('map_id');
   const mapField = {
     ivar: 'map_id',
-    label: 'Current map',
+    label: t('world.currentMap'),
     kind: 'maps',
     type: typeOf(mapId),
     value: isScalar(mapId) ? editValue(mapId) : null,
@@ -329,10 +333,10 @@ function pokemon(mon, path) {
     const info = fieldInfo('PokeBattle_Pokemon', name);
     return {
       ivar: name,
-      label: info.label,
-      note: info.note,
+      label: pick(info.label),
+      note: pick(info.note),
       kind: info.kind,
-      options: info.options,
+      options: pickOptions(info.options),
       mask: info.mask,
       type: typeOf(v),
       value: isScalar(v) ? editValue(v) : null,
@@ -355,6 +359,8 @@ function pokemon(mon, path) {
 
   // The six stats the game caches in the save and reads back directly.
   const STAT_IVARS = ['@totalhp', '@attack', '@defense', '@speed', '@spatk', '@spdef'];
+  // Names stay in PBStats order and in English: they identify the stat rather
+  // than label it, and the Party tab translates them by position when it draws.
   const STAT_NAMES = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD']; // Spe = Speed
   const statValues = STAT_IVARS.map((name, i) => ({ name: STAT_NAMES[i], value: num(g(name)) }));
 
@@ -364,7 +370,7 @@ function pokemon(mon, path) {
   // side (localApi.js) creates the ivar on first edit if it is missing.
   const contest = CONTEST_IVARS.map((name, i) => ({
     ivar: name,
-    label: CONTEST_NAMES[i],
+    label: pick(CONTEST_NAMES[i]),
     value: num(g(name)) ?? 0,
   }));
   const ribbons = (g('@ribbons')?.items || []).map(num).filter((v) => v !== null);
@@ -382,7 +388,7 @@ function pokemon(mon, path) {
     nickname: text(g('@name')),
     describe: {
       gender: d.gender === null ? null : (d.gender === 1 ? '♀' : '♂'),
-      nature: NATURES[d.nature] ?? null,
+      nature: natureList()[d.nature] ?? null,
       shiny: d.shiny,
       abilityName: nameOf('abilities', d.ability),
     },

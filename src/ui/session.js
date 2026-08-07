@@ -10,6 +10,7 @@
 
 import { call } from '../localApi.js';
 import { saveDraft, clearDraft } from '../draftStore.js';
+import { t } from '../i18n.js';
 import { $, el, boolToggle } from './dom.js';
 
 /**
@@ -228,7 +229,7 @@ export function boundInput(row, f) {
     return wrap;
   }
 
-  if (!scalar) return el('span', 'pv', '(not directly editable)');
+  if (!scalar) return el('span', 'pv', t('common.notEditable'));
 
   // A field with a small fixed set of legal values.
   if (options) {
