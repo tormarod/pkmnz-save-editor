@@ -118,11 +118,11 @@ Container rules match the game: the party is a compact array capped at 6, each
 box is exactly 30 fixed slots, so removing from a box writes `nil` back into the
 slot instead of shifting the others.
 
-It does **not** create eggs with proper step counts, set ribbons or contest
-stats, or check that a moveset is legal for the species. Ribbons and contest
-stats can be edited afterward from the Party/Boxes card (they're just an
-array of ids and six 0–255 counters); egg step counts still need the Raw
-tree.
+It does **not** set ribbons or contest stats, or check that a moveset is legal
+for the species. Both can be edited afterward from the Party/Boxes card
+(they're just an array of ids and six 0–255 counters). Creating a Pokémon as
+an egg sets its step count from the species' real `StepsToHatch`; the card
+also has a "Hatch now" action to finish one instantly.
 
 ## Game data
 

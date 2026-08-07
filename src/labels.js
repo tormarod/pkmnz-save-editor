@@ -4,7 +4,7 @@
 
 import { data } from './data.js';
 
-const TABLES = ['variables', 'switches', 'maps', 'species', 'items', 'moves', 'abilities', 'trainerTypes'];
+const TABLES = ['variables', 'switches', 'maps', 'species', 'items', 'moves', 'abilities', 'trainerTypes', 'types'];
 
 // Pokemon Essentials ships its default project with switches 14-30ish
 // pre-named as reminders of common scripted conditions ("s:pbIsWeekday(...)",

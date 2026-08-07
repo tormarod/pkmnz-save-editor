@@ -26,6 +26,9 @@ export function toast(msg, bad = false) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.toggle('bad', bad);
+  // An error deserves an assertive announcement that interrupts the screen
+  // reader; a routine confirmation only needs the polite queue.
+  t.setAttribute('aria-live', bad ? 'assertive' : 'polite');
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), bad ? 6000 : 2500);
@@ -73,18 +76,33 @@ export function setDirty(v) {
   if (v) scheduleDraftPersist();
 }
 
-/** Enable/disable the Undo/Redo buttons to match the current history. */
+// Runs after every mutation with the fresh change list, so the persistent
+// change panel (app.js) stays in sync without every call site needing to know
+// about it - registered once, same pattern as onRecalculated() below.
+let changesHook = null;
+export function onChangesChanged(fn) { changesHook = fn; }
+
+/** Enable/disable the Undo/Redo buttons to match the current history, and refresh the change panel. */
 export async function refreshUndoButtons() {
   try {
     const { canUndo, canRedo } = await api('/api/undoState');
     $('#undo').disabled = !canUndo;
     $('#redo').disabled = !canRedo;
-  } catch { /* no file open yet */ }
+  } catch { return; /* no file open yet */ }
+  if (changesHook) {
+    try {
+      const { changes } = await api('/api/changes');
+      changesHook(changes);
+    } catch { /* best-effort */ }
+  }
 }
 
-// Runs after an edit recalculates a Pokemon's stats, if the caller has
-// registered one - app.js wires this to "reload the party tab if it's the one
-// currently showing" without src/ui/session.js needing to import the party tab.
+// Runs after an edit changes a Pokemon in a way its card header summarizes
+// (a recalculated stat, or a forced nature/gender/ability/shininess flag), if
+// the caller has registered one - app.js wires this to "reload the party tab
+// if it's the one currently showing" without src/ui/session.js needing to
+// import the party tab. `statsChanged` tells the hook whether to toast about
+// it: a recalculation is worth announcing, a plain flag flip isn't.
 let recalcHook = null;
 export function onRecalculated(fn) { recalcHook = fn; }
 
@@ -95,7 +113,31 @@ export async function setValue(path, value, node, label) {
     setDirty(true);
     refreshUndoButtons();
     node?.classList.add('changed');
-    if (r.recalculated && recalcHook) await recalcHook();
+    if (r.recalculated && recalcHook) await recalcHook(true);
+    return true;
+  } catch (e) {
+    toast(e.message, true);
+    return false;
+  }
+}
+
+/**
+ * Write one of a Pokemon's override flags (@shinyflag/@genderflag/@abilityflag/
+ * @natureflag), which may not exist as an ivar yet - see the OVERRIDE_FLAGS
+ * comment in views.js. `monPath` addresses the Pokemon itself, not the ivar.
+ * Always redraws the card so the header's derived-facts line stays in sync,
+ * since that line lives on the read side and won't update on its own.
+ */
+export async function setFlagValue(monPath, ivarName, value, node, label) {
+  try {
+    const r = await api('/api/pokemon/setFlag', {
+      method: 'POST',
+      body: JSON.stringify({ path: monPath, ivar: ivarName, value, label }),
+    });
+    setDirty(true);
+    refreshUndoButtons();
+    node?.classList.add('changed');
+    if (recalcHook) await recalcHook(r.recalculated);
     return true;
   } catch (e) {
     toast(e.message, true);
@@ -158,7 +200,7 @@ const optKey = (v) => (v === null || v === undefined || v === '' ? ' ' : String(
 /** An input bound to a Marshal path; commits on change. */
 export function boundInput(row, f) {
   const {
-    type, value, path, scalar, options, mask, kind, range,
+    type, value, path, scalar, options, mask, kind, range, ivar, monPath,
   } = f;
   // f.label is the human name for the field (from schema.js/views.js), used
   // to describe the edit in the "what will change" summary. Named fieldLabel
@@ -196,7 +238,10 @@ export function boundInput(row, f) {
     sel.onchange = async () => {
       const chosen = options.find((o) => optKey(o.value) === sel.value);
       const raw = chosen ? chosen.value : null;
-      if (!(await setValue(path, raw, row, fieldLabel))) sel.value = optKey(value);
+      const ok = monPath
+        ? await setFlagValue(monPath, ivar, raw, row, fieldLabel)
+        : await setValue(path, raw, row, fieldLabel);
+      if (!ok) sel.value = optKey(value);
     };
     return sel;
   }
@@ -259,4 +304,18 @@ export function boundInput(row, f) {
   const wrap = el('span', 'hintwrap');
   wrap.append(inp, el('span', 'fieldhint', `(${range[0]}–${range[1]})`));
   return wrap;
+}
+
+/** The label/input/note grid every "just render these labelled fields" tab uses. */
+export function fieldGrid(fields) {
+  const grid = el('div', 'grid');
+  for (const f of fields) {
+    const row = el('div', 'field');
+    row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
+    row.append(boundInput(row, f));
+    if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.note) row.append(el('span', 'note', f.note));
+    grid.append(row);
+  }
+  return grid;
 }

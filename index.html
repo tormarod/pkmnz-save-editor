@@ -13,8 +13,10 @@
     <span id="openName" class="openname">no file open</span>
     <button id="undo" class="ghost hidden" disabled title="Undo the last edit (Ctrl+Z)">↶</button>
     <button id="redo" class="ghost hidden" disabled title="Redo (Ctrl+Y)">↷</button>
+    <button id="searchOpen" class="ghost hidden" title="Search everything (Ctrl+K)">🔎 Search</button>
     <button id="pick" class="ghost">Open a save…</button>
     <button id="reload" class="ghost hidden" title="Discard every edit and go back to the file you opened">Revert</button>
+    <button id="backup" class="ghost hidden" title="Download the file exactly as you opened it, with no edits">Download original</button>
     <button id="write" class="primary hidden" disabled>Download</button>
     <span id="dirty" class="dirty hidden">unsaved edits</span>
     <button id="themeToggle" class="ghost" title="Toggle light/dark theme">🌙</button>
@@ -24,7 +26,14 @@
 <input type="file" id="fileInput" accept=".rxdata" class="hidden">
 
 <div id="banner" class="banner hidden"></div>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<div id="searchOverlay" class="modal-overlay hidden">
+  <div class="modal searchmodal" role="dialog" aria-modal="true">
+    <input type="search" id="searchInput" placeholder="Search variables, switches, items, species, moves, fields…" autocomplete="off">
+    <ul id="searchResults" class="searchresults"></ul>
+  </div>
+</div>
 
 <section id="dropzone" class="dropzone">
   <p class="dz-intro">
@@ -48,10 +57,18 @@
 
 <section id="summary" class="summary hidden"></section>
 
+<details id="changesPanel" class="changespanel hidden">
+  <summary>Changes <span id="changesCount" class="fieldhint"></span></summary>
+  <ul id="changesList" class="changelist"></ul>
+</details>
+
 <nav class="tabs hidden">
   <button data-tab="variables" class="active">Variables</button>
   <button data-tab="switches">Switches</button>
   <button data-tab="trainer">Trainer</button>
+  <button data-tab="world">World</button>
+  <button data-tab="options">Options</button>
+  <button data-tab="dex">Pokédex</button>
   <button data-tab="bag">Bag</button>
   <button data-tab="party">Party &amp; Boxes</button>
   <button data-tab="raw">Raw tree</button>
@@ -75,6 +92,22 @@
   </div>
 
   <div class="panel hidden" data-panel="trainer"><div id="trainerBody"></div></div>
+  <div class="panel hidden" data-panel="world"><div id="worldBody"></div></div>
+  <div class="panel hidden" data-panel="options"><div id="optionsBody"></div></div>
+  <div class="panel hidden" data-panel="dex">
+    <div class="card">
+      <h3 class="flexhead">Pokédex <small id="dexCount"></small>
+        <span class="spacer"></span>
+        <button id="dexMarkSeen" class="tiny">Mark all seen</button>
+        <button id="dexMarkOwned" class="tiny">Mark all owned</button>
+      </h3>
+    </div>
+    <div class="controls">
+      <input type="search" id="dexFilter" placeholder="Filter by number or name…">
+      <label class="check"><input type="checkbox" id="dexOnlyMissing"> Only missing seen or owned</label>
+    </div>
+    <div id="dexList" class="rows"></div>
+  </div>
   <div class="panel hidden" data-panel="bag">
     <details id="addItemBox" class="card addcard">
       <summary>Add an item</summary>
@@ -130,6 +163,7 @@
         <label class="wide">EVs <span class="fieldhint">(0–252 each, 510 total)</span>
           <span class="statrow" id="addEVs"></span>
         </label>
+        <label class="check"><input type="checkbox" id="addEgg"> Create as an egg</label>
       </div>
       <p class="hint" id="addPreview"></p>
       <button id="addGo" class="primary">Add to save</button>
@@ -137,6 +171,11 @@
       <br>
       <span class="note">Created Pokémon get no ribbons or contest stats, and their moveset isn't checked for legality — edit those from the card below once it's added.</span>
     </details>
+    <div class="controls">
+      <input type="search" id="partyFilter" placeholder="Filter by species, nickname, held item or a known move…">
+      <label class="check"><input type="checkbox" id="partyShinyOnly"> Shiny only</label>
+      <label>Level <input type="number" id="partyLevelMin" min="1" max="100" placeholder="min" style="width:64px"> – <input type="number" id="partyLevelMax" min="1" max="100" placeholder="max" style="width:64px"></label>
+    </div>
     <div id="partyBody"></div>
   </div>
 

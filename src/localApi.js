@@ -5,7 +5,7 @@
 import { Save } from './save.js';
 import { children, preview } from './save.js';
 import {
-  RArray, strToJs, getIvar, setIvar,
+  RArray, strToJs, jsToStr, getIvar, setIvar,
 } from './marshal.js';
 import * as views from './views.js';
 import * as roster from './roster.js';
@@ -15,6 +15,7 @@ import { SECTIONS } from './schema.js';
 import {
   recalcStats, STAT_INPUTS, setContestStat, addRibbon, removeRibbon,
 } from './create.js';
+import { validate } from './validate.js';
 
 const UNDO_LIMIT = 20;
 
@@ -101,7 +102,12 @@ function genericLabel(path) {
   }).join(' / ');
 }
 
-/** Record a single field edit, collapsing repeat edits of the same path into one entry. */
+/**
+ * Record a single field edit, collapsing repeat edits of the same path into one
+ * entry. Keeps the original raw `before` value (never overwritten by a repeat
+ * edit) so the persistent change panel can revert this one field precisely,
+ * regardless of what else has changed since - see '/api/changes/revert'.
+ */
 function recordFieldChange(label, path, before, after) {
   const key = JSON.stringify(path);
   const beforeStr = preview(before);
@@ -114,13 +120,23 @@ function recordFieldChange(label, path, before, after) {
   }
   if (beforeStr === afterStr) return;
   state.changes.push({
-    key, desc: label || genericLabel(path), before: beforeStr, after: afterStr,
+    key, kind: 'field', path, desc: label || genericLabel(path), before: beforeStr, after: afterStr, beforeRaw: before,
   });
 }
 
-/** Record a structural change (add/remove/move/bulk action) with no before/after pair. */
+/**
+ * Record a structural change (add/remove/move/bulk action) with no before/after
+ * pair. Carries the whole-tree snapshot pushUndo() just took (i.e. the state
+ * immediately before this action), so the panel can revert it by rewinding to
+ * that point - which also discards any later changes, unlike a field revert.
+ */
 function recordChange(desc) {
-  state.changes.push({ key: `#${state.changes.length}:${Math.random()}`, desc });
+  state.changes.push({
+    key: `#${state.changes.length}:${Math.random()}`,
+    kind: 'structural',
+    desc,
+    snapshot: state.undoStack[state.undoStack.length - 1] || null,
+  });
 }
 
 function monLabel(mon) {
@@ -176,6 +192,12 @@ const ROUTES = {
     return { bytes, size: bytes.length, name: state.save.file };
   },
 
+  /** The untouched bytes exactly as the user handed them to us, for a backup download. */
+  '/api/backup': () => {
+    need();
+    return { bytes: state.originalBytes, size: state.originalBytes.length, name: state.save.file };
+  },
+
   '/api/markSaved': () => {
     state.dirty = false;
     state.changes = [];
@@ -183,6 +205,42 @@ const ROUTES = {
   },
 
   '/api/changes': () => ({ changes: state.changes }),
+
+  /**
+   * Revert a single entry from the persistent change panel. A field edit reverts
+   * exactly and independently of order (its own path, its own original value -
+   * see recordFieldChange). A structural entry (add/remove/move/bulk action) has
+   * no generic inverse, so it rewinds the whole tree to the snapshot taken right
+   * before it happened; if later changes exist, the caller must pass `confirmed`
+   * since those are lost too (`needsConfirm`/`laterCount` let the UI ask first).
+   */
+  '/api/changes/revert': (b) => {
+    const s = need();
+    const entry = state.changes.find((c) => c.key === b.key);
+    if (!entry) throw new Error('that change is no longer in the list');
+    if (entry.kind === 'field') {
+      pushUndo();
+      try {
+        s.locate(entry.path).set(entry.beforeRaw);
+      } catch (e) {
+        throw new Error(`could not revert - the surrounding data has changed since: ${e.message}`);
+      }
+      state.changes = state.changes.filter((c) => c !== entry);
+      state.dirty = s.isDirty();
+      return { ok: true, dirty: state.dirty, changes: state.changes };
+    }
+    if (!entry.snapshot) throw new Error('this change is too old to revert directly - use Undo instead');
+    const idx = state.changes.indexOf(entry);
+    const laterCount = state.changes.length - idx - 1;
+    if (laterCount > 0 && !b.confirmed) return { needsConfirm: true, laterCount };
+    pushUndo();
+    state.save.streams = structuredClone(entry.snapshot.streams);
+    state.changes = structuredClone(entry.snapshot.changes);
+    state.dirty = s.isDirty();
+    return { ok: true, dirty: state.dirty, changes: state.changes };
+  },
+
+  '/api/validate': () => ({ warnings: validate(need()) }),
 
   '/api/undoState': () => ({ canUndo: state.undoStack.length > 0, canRedo: state.redoStack.length > 0 }),
 
@@ -206,6 +264,26 @@ const ROUTES = {
   '/api/variables': (b) => ({ rows: views.variables(need(), !!b.onlySet) }),
   '/api/switches': (b) => ({ rows: views.switches(need(), !!b.onlySet) }),
   '/api/trainer': () => views.trainer(need()),
+  '/api/world': () => views.world(need()),
+  '/api/player': () => views.player(need()),
+  '/api/dex': () => ({ rows: views.dex(need()) }),
+
+  '/api/dex/markAll': (b) => {
+    const s = need();
+    const which = b.which === 'owned' ? '@owned' : b.which === 'seen' ? '@seen' : null;
+    if (!which) throw new Error(`unknown dex flag '${b.which}'`);
+    pushUndo();
+    const arr = getIvar(s.section('trainer'), which);
+    if (!arr || arr.t !== 'array') throw new Error(`this save has no ${which} array`);
+    let count = 0;
+    for (let i = 1; i < arr.items.length; i++) {
+      if (arr.items[i] !== true) { arr.items[i] = true; count++; }
+    }
+    state.dirty = true;
+    if (count) recordChange(`Marked all species as ${which === '@seen' ? 'seen' : 'owned'} (${count} newly marked)`);
+    return { count, rows: views.dex(s) };
+  },
+  '/api/settings': () => views.options(need()),
   '/api/bag': () => ({ pockets: views.bag(need()) }),
   '/api/party': () => ({ party: views.party(need()) }),
   '/api/boxes': () => ({ boxes: views.boxes(need()) }),
@@ -249,6 +327,26 @@ const ROUTES = {
     state.dirty = true;
     recordChange(`Maxed IVs for ${monLabel(mon)}`);
     return { ok: true, ...r };
+  },
+
+  // The four override flags (@shinyflag/@genderflag/@abilityflag/@natureflag)
+  // are nil-by-default and often simply absent from the ivar list, so they
+  // can't go through the generic /api/set (which requires the ivar to
+  // already exist) - this creates it on first use instead.
+  '/api/pokemon/setFlag': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    if (!mon || mon.t !== 'obj') throw new Error('not a Pokemon');
+    if (!views.OVERRIDE_FLAGS.includes(b.ivar)) throw new Error(`not an overridable flag: ${b.ivar}`);
+    const before = getIvar(mon, b.ivar) ?? null;
+    const value = b.value === undefined ? null : b.value;
+    setIvar(mon, b.ivar, value);
+    state.dirty = true;
+    recordFieldChange(b.label, [...b.path, { k: 'v', name: b.ivar }], before, value);
+    const recalculated = b.ivar === '@natureflag';
+    if (recalculated) recalcStats(mon);
+    return { ok: true, recalculated };
   },
 
   '/api/pokemon/contest': (b) => {
@@ -343,6 +441,70 @@ const ROUTES = {
     return { ...r, summary: views.summary(s) };
   },
 
+  '/api/party/swap': (b) => {
+    const s = need();
+    pushUndo();
+    const party = views.party(s);
+    const a = Number(b.a);
+    const bb = Number(b.b);
+    const labelA = party[a]?.nickname || party[a]?.speciesName || `slot ${a + 1}`;
+    const labelB = party[bb]?.nickname || party[bb]?.speciesName || `slot ${bb + 1}`;
+    roster.swapParty(s, a, bb);
+    state.dirty = true;
+    recordChange(`Swapped party order of ${labelA} and ${labelB}`);
+    return { party: views.party(s) };
+  },
+
+  '/api/pokemon/moves/learn': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const id = roster.learnMove(mon, Number(b.moveId));
+    state.dirty = true;
+    recordChange(`Taught ${monLabel(mon)} ${nameOf('moves', id) || `move ${id}`}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/forget': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    const id = roster.forgetMove(mon, Number(b.slot));
+    state.dirty = true;
+    recordChange(`${monLabel(mon)} forgot ${nameOf('moves', id) || 'a move'}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/restorePP': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.restoreMovePP(mon);
+    state.dirty = true;
+    recordChange(`Restored PP for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/moves/relearn': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.relearnMoves(mon);
+    state.dirty = true;
+    recordChange(`Reset ${monLabel(mon)}'s moves to the level-up set`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/hatch': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.hatchEgg(mon);
+    state.dirty = true;
+    recordChange(`Hatched ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
   '/api/party/heal': () => {
     const s = need();
     pushUndo();
@@ -350,6 +512,62 @@ const ROUTES = {
     state.dirty = true;
     recordChange(`Healed the party (${r.healed} Pokémon: HP, status and PP restored)`);
     return { ...r, party: views.party(s) };
+  },
+
+  '/api/party/rareCandy': (b) => {
+    const s = need();
+    pushUndo();
+    const r = roster.setPartyLevel(s, b.level);
+    state.dirty = true;
+    if (r.count) recordChange(`Set the whole party to level ${r.level} (${r.count} Pokémon)`);
+    return { ...r, party: views.party(s) };
+  },
+
+  '/api/pokemon/setEVs': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.setEVs(mon, b.evs);
+    const r = recalcStats(mon);
+    state.dirty = true;
+    recordChange(`Set EVs for ${monLabel(mon)}`);
+    return { ok: true, ...r };
+  },
+
+  '/api/pokemon/maxHappiness': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.maxHappiness(mon);
+    state.dirty = true;
+    recordChange(`Maxed happiness for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/maxPPUps': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.maxPPUps(mon);
+    state.dirty = true;
+    recordChange(`Maxed PP Ups for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
+  '/api/box/setField': (b) => {
+    const s = need();
+    pushUndo();
+    if (!['@name', '@background'].includes(b.field)) throw new Error(`unknown box field '${b.field}'`);
+    const boxes = getIvar(s.section('storage'), '@boxes');
+    const box = boxes?.items?.[Number(b.box)];
+    if (!box || box.t !== 'obj') throw new Error(`box ${Number(b.box) + 1} does not exist`);
+    const value = b.field === '@name' ? jsToStr(String(b.value ?? '')) : (Math.floor(Number(b.value)) || 0);
+    setIvar(box, b.field, value);
+    state.dirty = true;
+    recordChange(b.field === '@name'
+      ? `Renamed box ${Number(b.box) + 1} to "${b.value}"`
+      : `Set box ${Number(b.box) + 1}'s wallpaper to ${value}`);
+    return { ok: true, boxes: views.boxes(s) };
   },
 
   '/api/box/sort': (b) => {
@@ -372,12 +590,34 @@ const ROUTES = {
     return { ...r, pockets: views.bag(s) };
   },
 
+  '/api/item/remove': (b) => {
+    const s = need();
+    pushUndo();
+    const before = views.bag(s).find((p) => p.pocket === Number(b.pocket))
+      ?.items.find((it) => it.index === Number(b.index));
+    const name = before ? (before.name || `item ${before.id}`) : 'item';
+    bag.removeItem(s, Number(b.pocket), Number(b.index));
+    state.dirty = true;
+    recordChange(`Removed ${before ? `${before.qty}x ` : ''}${name} from the bag`);
+    return { pockets: views.bag(s) };
+  },
+
   '/api/bag/maxPocket': (b) => {
     const s = need();
     pushUndo();
     const r = bag.maxPocket(s, Number(b.pocket));
     state.dirty = true;
     if (r.count) recordChange(`Maxed the quantity of ${r.count} item${r.count === 1 ? '' : 's'} in pocket ${Number(b.pocket)}`);
+    return { ...r, pockets: views.bag(s) };
+  },
+
+  '/api/bag/giveSet': (b) => {
+    const s = need();
+    pushUndo();
+    const qty = b.qty !== undefined ? Number(b.qty) : 1;
+    const r = bag.giveSet(s, Number(b.pocket), qty);
+    state.dirty = true;
+    if (r.count) recordChange(`Gave ${qty}x of every item in pocket ${Number(b.pocket)} (${r.count} items)`);
     return { ...r, pockets: views.bag(s) };
   },
 };

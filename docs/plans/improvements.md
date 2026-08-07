@@ -2,6 +2,9 @@
 
 Based on a full read-through of `src/`, `app.js`, `test/`, and CI as of 2026-08-06.
 
+The user-facing items below (2, 9–18) have since landed. Follow-up user-facing
+work is tracked in `docs/plans/usability-round-2.md`.
+
 ## Critical — safety gap
 
 1. **CI doesn't actually verify save round-tripping.** `test/roundtrip.js` and

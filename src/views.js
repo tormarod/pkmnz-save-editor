@@ -2,13 +2,40 @@
 // Marshal path it came from, so the UI can write back through the generic
 // Save#set without any per-tab save logic.
 
-import { SECTIONS, fieldInfo } from './schema.js';
+import {
+  SECTIONS, fieldInfo, NATURES, CLASS_FIELDS,
+} from './schema.js';
 import { labels, nameOf, special } from './labels.js';
 import { strToJs, floatText, getIvar as ivar } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
-import { speciesExists, speciesData, itemInternalName } from './gamedata.js';
+import {
+  speciesExists, speciesData, speciesCount, itemInternalName,
+} from './gamedata.js';
 import { levelFromExperience, MAXLEVEL } from './expTable.js';
-import { CONTEST_IVARS, CONTEST_NAMES } from './create.js';
+import { CONTEST_IVARS, CONTEST_NAMES, describe } from './create.js';
+
+/** The four ivars that force a Pokemon's nature/gender/ability/shininess away from its personal ID. */
+export const OVERRIDE_FLAGS = ['@shinyflag', '@genderflag', '@abilityflag', '@natureflag'];
+
+/**
+ * What each override dropdown falls back to when left on "Natural" — shown
+ * next to the field so that option has a visible meaning instead of just
+ * naming where the value comes from.
+ */
+function derivedFor(name, d) {
+  switch (name) {
+    case '@genderflag':
+      return d.gender === null ? null : (d.gender === 1 ? '♀ Female' : '♂ Male');
+    case '@natureflag':
+      return NATURES[d.nature] ?? null;
+    case '@abilityflag':
+      return nameOf('abilities', d.ability) || (d.ability ? `ability ${d.ability}` : null);
+    case '@shinyflag':
+      return d.shiny ? '✨ Shiny' : 'Not shiny';
+    default:
+      return null;
+  }
+}
 
 const S = (key) => SECTIONS.findIndex((s) => s.key === key);
 const num = (v) => (typeof v === 'number' ? v : null);
@@ -85,31 +112,33 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
 export const variables = (save, onlySet = false) => indexedList(save, 'variables', 'variables', onlySet);
 export const switches = (save, onlySet = false) => indexedList(save, 'switches', 'switches', onlySet);
 
+/** A boundInput()-ready descriptor for one named ivar, or null if it isn't set on this object. */
+function describeField(obj, base, cls, name) {
+  const v = ivar(obj, name);
+  if (v === undefined) return null;
+  const info = fieldInfo(cls, name);
+  return {
+    ivar: name,
+    label: info.label,
+    note: info.note,
+    kind: info.kind,
+    options: info.options,
+    type: typeOf(v),
+    value: isScalar(v) ? editValue(v) : null,
+    scalar: isScalar(v),
+    preview: preview(v),
+    resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
+    path: [...base, { k: 'v', name }],
+  };
+}
+
 /** Trainer scalars plus the badge flags. */
 export function trainer(save) {
   const tr = save.section('trainer');
   const base = [{ k: 's', i: S('trainer') }];
-  const simple = ['@name', '@money', '@trainertype', '@outfit', '@language',
+  const simple = ['@name', '@id', '@gender', '@money', '@trainertype', '@outfit', '@language',
     '@pokedex', '@pokegear', '@expall', '@metaID'];
-  const fields = [];
-  for (const name of simple) {
-    const v = ivar(tr, name);
-    if (v === undefined) continue;
-    const info = fieldInfo('PokeBattle_Trainer', name);
-    fields.push({
-      ivar: name,
-      label: info.label,
-      note: info.note,
-      kind: info.kind,
-      options: info.options,
-      type: typeOf(v),
-      value: isScalar(v) ? editValue(v) : null,
-      scalar: isScalar(v),
-      preview: preview(v),
-      resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
-      path: [...base, { k: 'v', name }],
-    });
-  }
+  const fields = simple.map((name) => describeField(tr, base, 'PokeBattle_Trainer', name)).filter(Boolean);
   const badges = (ivar(tr, '@badges')?.items || []).map((b, i) => ({
     index: i,
     value: b === true,
@@ -120,6 +149,69 @@ export function trainer(save) {
     return { ivar: name, count: (arr?.items || []).filter((x) => x === true).length, total: (arr?.items?.length ?? 1) - 1 };
   });
   return { fields, badges, dex };
+}
+
+/** One row per species: its seen/owned Pokedex flags, for the Pokedex tab's filterable list. */
+export function dex(save) {
+  const tr = save.section('trainer');
+  const base = [{ k: 's', i: S('trainer') }];
+  const seen = ivar(tr, '@seen');
+  const owned = ivar(tr, '@owned');
+  const rows = [];
+  for (let id = 1; id <= speciesCount(); id++) {
+    rows.push({
+      index: id,
+      name: nameOf('species', id),
+      seen: seen?.items?.[id] === true,
+      owned: owned?.items?.[id] === true,
+      seenPath: [...base, { k: 'v', name: '@seen' }, { k: 'i', i: id }],
+      ownedPath: [...base, { k: 'v', name: '@owned' }, { k: 'i', i: id }],
+    });
+  }
+  return rows;
+}
+
+/** The player's current map and position - a searchable map field plus raw x/y/direction, for teleporting. */
+export function player(save) {
+  const p = save.section('player');
+  const base = [{ k: 's', i: S('player') }];
+  const mapId = save.section('map_id');
+  const mapField = {
+    ivar: 'map_id',
+    label: 'Current map',
+    kind: 'maps',
+    type: typeOf(mapId),
+    value: isScalar(mapId) ? editValue(mapId) : null,
+    scalar: isScalar(mapId),
+    preview: preview(mapId),
+    resolved: nameOf('maps', mapId),
+    path: [{ k: 's', i: S('map_id') }],
+  };
+  const fields = [
+    mapField,
+    ...['@x', '@y', '@direction'].map((name) => describeField(p, base, 'Game_Player', name)).filter(Boolean),
+  ];
+  return { fields };
+}
+
+/** Every field PokemonGlobalMetadata has labels for: bike/surf/repel/day care/dex/phone state. */
+export function world(save) {
+  const g = save.section('pokemon_global');
+  const base = [{ k: 's', i: S('pokemon_global') }];
+  const fields = Object.keys(CLASS_FIELDS.PokemonGlobalMetadata)
+    .map((name) => describeField(g, base, 'PokemonGlobalMetadata', name))
+    .filter(Boolean);
+  return { fields };
+}
+
+/** Every field PokemonSystem has labels for: the game's own Options screen. */
+export function options(save) {
+  const sys = save.section('pokemon_system');
+  const base = [{ k: 's', i: S('pokemon_system') }];
+  const fields = Object.keys(CLASS_FIELDS.PokemonSystem)
+    .map((name) => describeField(sys, base, 'PokemonSystem', name))
+    .filter(Boolean);
+  return { fields };
 }
 
 /** Bag pockets with item names resolved from PBS/items.txt. */
@@ -135,6 +227,7 @@ export function bag(save) {
       const qty = entry?.items?.[1];
       const p = [...base, { k: 'i', i: pi }, { k: 'i', i: ii }];
       return {
+        index: ii,
         id: num(id),
         name: nameOf('items', num(id)),
         internal: itemInternalName(num(id)),
@@ -160,11 +253,23 @@ function pokemon(mon, path) {
     ppup: num(ivar(m, '@ppup')),
     idPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@id' }],
     ppPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@pp' }],
+    ppupPath: [...path, { k: 'v', name: '@moves' }, { k: 'i', i }, { k: 'v', name: '@ppup' }],
+    slot: i,
   })).filter((m) => m.id);
 
+  const d = describe(mon);
+
   const field = (name) => {
-    const v = g(name);
-    if (v === undefined) return null;
+    const raw = g(name);
+    // The four override flags are nil-by-default and the game never sets
+    // them unless something explicitly forces the value (see makePokemon in
+    // create.js), so most Pokemon simply don't carry the ivar at all. Show
+    // the field anyway - "not forced" is a real, meaningful state - and
+    // route its writes through setFlagValue (see session.js), which creates
+    // the ivar on first use instead of failing to locate it.
+    const isFlag = OVERRIDE_FLAGS.includes(name);
+    if (raw === undefined && !isFlag) return null;
+    const v = raw === undefined ? null : raw;
     const info = fieldInfo('PokeBattle_Pokemon', name);
     return {
       ivar: name,
@@ -175,9 +280,11 @@ function pokemon(mon, path) {
       mask: info.mask,
       type: typeOf(v),
       value: isScalar(v) ? editValue(v) : null,
-      scalar: isScalar(v),
+      scalar: isFlag ? true : isScalar(v),
       preview: preview(v),
       resolved: info.kind && typeof v === 'number' ? nameOf(info.kind, v) : null,
+      derived: derivedFor(name, d),
+      monPath: isFlag ? path : undefined,
       path: [...path, { k: 'v', name }],
     };
   };
@@ -217,6 +324,12 @@ function pokemon(mon, path) {
     species,
     speciesName: nameOf('species', species),
     nickname: text(g('@name')),
+    describe: {
+      gender: d.gender === null ? null : (d.gender === 1 ? '♀' : '♂'),
+      nature: NATURES[d.nature] ?? null,
+      shiny: d.shiny,
+      abilityName: nameOf('abilities', d.ability),
+    },
     level,
     maxLevel: MAXLEVEL,
     growthRate,
@@ -263,6 +376,7 @@ export function boxes(save) {
     return {
       index: bi,
       name: text(ivar(box, '@name')),
+      background: num(ivar(box, '@background')),
       size: mons?.items.length ?? 0,
       count: list.length,
       pokemon: list,

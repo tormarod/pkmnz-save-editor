@@ -5,9 +5,10 @@ import { NATURES } from '../../schema.js';
 import { startExperience } from '../../expTable.js';
 import { speciesSpriteUrl, itemSpriteUrl, attachSprite } from '../../sprites.js';
 import { $, el } from '../dom.js';
+import { confirmModal } from '../modal.js';
 import {
   api, boundInput, setValue, setDirty, refreshUndoButtons, toast,
-  ensureItemOptions, itemOpts, pickId,
+  ensureItemOptions, ensureKindOptions, itemOpts, pickId,
 } from '../session.js';
 
 let allBoxes = [];
@@ -26,15 +27,54 @@ function monCard(mon, title, loc) {
   bits.push(`HP ${mon.hp}/${mon.totalhp}`);
   h.append(el('small', null, bits.join(' · ')));
 
+  const d = mon.describe || {};
+  const dbits = [];
+  if (d.gender) dbits.push(d.gender);
+  if (d.nature) dbits.push(d.nature);
+  if (d.shiny) dbits.push('✨ Shiny');
+  if (d.abilityName) dbits.push(d.abilityName);
+  if (dbits.length) h.append(el('small', null, dbits.join(' · ')));
+
   if (loc) {
     h.append(el('span', 'spacer'));
+    let boxSel = null;
+    if (loc.where === 'party') {
+      const up = el('button', 'tiny', '▲');
+      up.title = 'Move up in party order';
+      up.disabled = loc.index === 0;
+      up.onclick = async () => {
+        try {
+          await api('/api/party/swap', { method: 'POST', body: JSON.stringify({ a: loc.index, b: loc.index - 1 }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      const down = el('button', 'tiny', '▼');
+      down.title = 'Move down in party order';
+      down.disabled = loc.index === loc.total - 1;
+      down.onclick = async () => {
+        try {
+          await api('/api/party/swap', { method: 'POST', body: JSON.stringify({ a: loc.index, b: loc.index + 1 }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      h.append(up, down);
+      boxSel = el('select', 'tiny');
+      for (const b of allBoxes) {
+        boxSel.append(new Option(`Box ${b.index + 1}${b.name ? ` "${b.name}"` : ''}`, b.index));
+      }
+      h.append(boxSel);
+    }
     const move = el('button', 'tiny', loc.where === 'party' ? 'To box' : 'To party');
     move.onclick = async () => {
       try {
         await api('/api/pokemon/move', {
           method: 'POST',
           body: JSON.stringify(loc.where === 'party'
-            ? { direction: 'toBox', index: loc.index, box: 0 }
+            ? { direction: 'toBox', index: loc.index, box: Number(boxSel.value) }
             : { direction: 'toParty', box: loc.box, slot: loc.slot }),
         });
         setDirty(true);
@@ -44,7 +84,7 @@ function monCard(mon, title, loc) {
     };
     const del = el('button', 'tiny danger', 'Remove');
     del.onclick = async () => {
-      if (!confirm(`Remove ${monName}? This only takes effect once you write to disk.`)) return;
+      if (!(await confirmModal(`Remove ${monName}? This only takes effect once you write to disk.`, { confirmLabel: 'Remove', danger: true }))) return;
       try {
         await api('/api/pokemon/remove', {
           method: 'POST',
@@ -79,7 +119,66 @@ function monCard(mon, title, loc) {
         toast('Stats recalculated');
       } catch (e) { toast(e.message, true); }
     };
-    h.append(move, maxIVs, recalc, del);
+    const maxEVs = el('button', 'tiny', 'Max EVs');
+    maxEVs.title = 'Set every EV to 252 and recompute this Pokémon\'s stats';
+    maxEVs.onclick = async () => {
+      try {
+        await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs: [252, 252, 252, 252, 252, 252] }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed EVs for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const clearEVs = el('button', 'tiny', 'Clear EVs');
+    clearEVs.title = 'Set every EV to 0 and recompute this Pokémon\'s stats';
+    clearEVs.onclick = async () => {
+      try {
+        await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs: [0, 0, 0, 0, 0, 0] }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Cleared EVs for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const maxHappiness = el('button', 'tiny', 'Max happiness');
+    maxHappiness.title = 'Set friendship to 255';
+    maxHappiness.onclick = async () => {
+      try {
+        await api('/api/pokemon/maxHappiness', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed happiness for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const maxPPUps = el('button', 'tiny', 'Max PP Ups');
+    maxPPUps.title = 'Set every move\'s PP Ups to 3 and refill PP to match';
+    maxPPUps.onclick = async () => {
+      try {
+        await api('/api/pokemon/maxPPUps', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed PP Ups for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    h.append(move, maxIVs, recalc, maxEVs, clearEVs, maxHappiness, maxPPUps);
+    if (mon.egg) {
+      const hatch = el('button', 'tiny', 'Hatch now');
+      hatch.title = 'Instantly finish this egg\'s remaining steps and heal it to full HP';
+      hatch.onclick = async () => {
+        try {
+          await api('/api/pokemon/hatch', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+          toast(`Hatched ${monName}`);
+        } catch (e) { toast(e.message, true); }
+      };
+      h.append(hatch);
+    }
+    h.append(del);
   }
   card.append(h);
 
@@ -123,6 +222,7 @@ function monCard(mon, title, loc) {
     row.append(el('label', null, f.label || f.ivar.replace(/^@/, '')));
     row.append(boundInput(row, { ...f, label: `${monName}: ${f.label || f.ivar.replace(/^@/, '')}` }));
     if (f.resolved) row.append(el('span', 'note', f.resolved));
+    if (f.derived) row.append(el('span', 'note', `natural: ${f.derived}`));
     if (f.note) row.append(el('span', 'note', f.note));
     grid.append(row);
   }
@@ -152,6 +252,38 @@ function monCard(mon, title, loc) {
     if (STAT_HINT[s.ivar]) line.append(el('span', 'fieldhint', `(${STAT_HINT[s.ivar]})`));
     wrap.append(line);
     card.append(wrap);
+
+    // A 252/252/6 preset spread is the most common competitive EV layout;
+    // pick which two stats get 252 and which gets the last 6, rest stay 0.
+    if (s.ivar === '@ev') {
+      const spread = el('div', 'badges');
+      const mkSel = (deflt) => {
+        const sel = el('select', 'tiny');
+        STAT.forEach((name, i) => sel.append(new Option(name, i)));
+        sel.value = deflt;
+        return sel;
+      };
+      const selA = mkSel(0);
+      const selB = mkSel(1);
+      const selC = mkSel(2);
+      const applyBtn = el('button', 'tiny', 'Apply 252/252/6 spread');
+      applyBtn.title = 'Set two stats to 252 EVs, one to 6, the rest to 0';
+      applyBtn.onclick = async () => {
+        const evs = [0, 0, 0, 0, 0, 0];
+        evs[Number(selA.value)] = 252;
+        evs[Number(selB.value)] = 252;
+        evs[Number(selC.value)] = 6;
+        try {
+          await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+          toast(`Applied EV spread to ${monName}`);
+        } catch (e) { toast(e.message, true); }
+      };
+      spread.append(el('span', 'fieldhint', '252 in'), selA, el('span', 'fieldhint', '/ 252 in'), selB, el('span', 'fieldhint', '/ 6 in'), selC, applyBtn);
+      card.append(spread);
+    }
   }
 
   // Contest stats: plain 0-255 counters. The ivars may not exist yet on this
@@ -241,26 +373,97 @@ function monCard(mon, title, loc) {
   ribbonWrap.append(ribbonLine);
   card.append(ribbonWrap);
 
+  const moveWrap = el('div', 'field');
+  moveWrap.append(el('label', null, 'Moves'));
+  const moveBody = el('div');
+
+  if (mon.moves.length) {
+    const actions = el('div', 'badges');
+    const restore = el('button', 'tiny', 'Restore PP');
+    restore.title = 'Refill every move to its max PP';
+    restore.onclick = async () => {
+      try {
+        await api('/api/pokemon/moves/restorePP', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    const relearn = el('button', 'tiny', 'Relearn level-up set');
+    relearn.title = 'Replace this Pokémon\'s moves with what it would know at its current level';
+    relearn.onclick = async () => {
+      if (!(await confirmModal(`Replace ${monName}'s moves with the level-up set for its current level?`, { confirmLabel: 'Replace' }))) return;
+      try {
+        await api('/api/pokemon/moves/relearn', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    actions.append(restore, relearn);
+    moveBody.append(actions);
+  }
+
   if (mon.moves.length) {
     const table = el('table', 'items');
     const head = el('tr');
-    for (const c of ['ID', 'Move', 'PP']) head.append(el('th', null, c));
+    for (const c of ['Move', 'PP', 'PP Ups', '']) head.append(el('th', null, c));
     table.append(head);
-    mon.moves.forEach((m, i) => {
+    mon.moves.forEach((m) => {
       const tr = el('tr');
-      const idc = el('td');
-      idc.append(boundInput(tr, {
-        type: 'int', value: m.id, path: m.idPath, scalar: true, label: `${monName}: move ${i + 1}`,
+      const namec = el('td');
+      namec.append(boundInput(tr, {
+        kind: 'moves', value: m.id, path: m.idPath, scalar: true, label: `${monName}: move slot ${m.slot + 1}`,
       }));
       const ppc = el('td');
       ppc.append(boundInput(tr, {
-        type: 'int', value: m.pp, path: m.ppPath, scalar: true, label: `${monName}: ${m.name || `move ${i + 1}`} PP`,
+        type: 'int', value: m.pp, path: m.ppPath, scalar: true, label: `${monName}: ${m.name || 'move'} PP`,
       }));
-      tr.append(idc, el('td', null, m.name || '(unknown)'), ppc);
+      const ppupc = el('td');
+      ppupc.append(boundInput(tr, {
+        type: 'int', value: m.ppup, path: m.ppupPath, scalar: true, range: [0, 3], label: `${monName}: ${m.name || 'move'} PP Ups`,
+      }));
+      const rmc = el('td');
+      const forget = el('button', 'tiny danger', 'Forget');
+      forget.onclick = async () => {
+        try {
+          await api('/api/pokemon/moves/forget', { method: 'POST', body: JSON.stringify({ path: mon.path, slot: m.slot }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+        } catch (e) { toast(e.message, true); }
+      };
+      rmc.append(forget);
+      tr.append(namec, ppc, ppupc, rmc);
       table.append(tr);
     });
-    card.append(table);
+    moveBody.append(table);
   }
+
+  if (mon.moves.length < 4) {
+    const addRow = el('div', 'badges');
+    const addInp = el('input');
+    addInp.type = 'text';
+    addInp.setAttribute('list', 'dl-moves');
+    addInp.placeholder = 'move to learn';
+    addInp.style.width = '160px';
+    const addBtn = el('button', 'tiny', 'Learn');
+    addBtn.onclick = async () => {
+      const opts = await ensureKindOptions('moves');
+      const id = pickId(addInp.value, opts);
+      if (!id) { toast('Pick a move first', true); return; }
+      try {
+        await api('/api/pokemon/moves/learn', { method: 'POST', body: JSON.stringify({ path: mon.path, moveId: id }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    addRow.append(addInp, addBtn);
+    moveBody.append(addRow);
+  }
+  moveWrap.append(moveBody);
+  card.append(moveWrap);
   return card;
 }
 
@@ -273,13 +476,130 @@ function fillBoxPicker() {
   }
 }
 
-export async function loadParty() {
+// --- filtering: species, nickname, held item (text) plus shiny/level -----------
+
+function filterActive() {
+  return $('#partyFilter').value.trim() !== '' || $('#partyShinyOnly').checked
+    || $('#partyLevelMin').value !== '' || $('#partyLevelMax').value !== '';
+}
+
+function monMatchesFilter(mon) {
+  const q = $('#partyFilter').value.trim().toLowerCase();
+  const shinyOnly = $('#partyShinyOnly').checked;
+  const minLvl = $('#partyLevelMin').value === '' ? null : Number($('#partyLevelMin').value);
+  const maxLvl = $('#partyLevelMax').value === '' ? null : Number($('#partyLevelMax').value);
+  if (shinyOnly && !mon.describe?.shiny) return false;
+  if (minLvl !== null && (mon.level === null || mon.level < minLvl)) return false;
+  if (maxLvl !== null && (mon.level === null || mon.level > maxLvl)) return false;
+  if (q) {
+    const moveNames = mon.moves.map((m) => m.name).filter(Boolean);
+    const hay = [mon.nickname, mon.speciesName, mon.itemName, ...moveNames].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+// --- box grid: a compact 6-wide sprite grid, click a slot to expand it ---------
+// into the full card below it. Every box is rendered, including empty ones, so
+// they can still be renamed/targeted; there are far too many boxes*30 slots to
+// keep every Pokemon fully expanded at once the way the party list does.
+
+let partyData = [];
+let boxesData = [];
+const selectedSlot = {}; // box index -> selected slot number, or null
+
+function boxCell(mon, box) {
+  const cell = el('button', 'boxcell');
+  cell.type = 'button';
+  if (!mon) { cell.disabled = true; return cell; }
+  attachSprite(cell, speciesSpriteUrl(mon.species), mon.speciesName, 'sprite');
+  cell.append(el('span', 'boxcelllvl', mon.level ?? ''));
+  cell.title = `${mon.nickname || mon.speciesName || 'Pokémon'} · Lv.${mon.level ?? '?'}`;
+  if (mon.describe?.shiny) cell.classList.add('shiny');
+  if (filterActive() && !monMatchesFilter(mon)) cell.classList.add('dim');
+  if (selectedSlot[box.index] === mon.slot) cell.classList.add('selected');
+  cell.onclick = () => {
+    selectedSlot[box.index] = selectedSlot[box.index] === mon.slot ? null : mon.slot;
+    draw();
+  };
+  return cell;
+}
+
+function boxCard(box) {
+  const card = el('div', 'card');
+  const bh = el('div', 'flexhead boxhead');
+  bh.append(el('span', 'boxlabel', `Box ${box.index + 1}`));
+
+  const nameInp = el('input');
+  nameInp.type = 'text';
+  nameInp.className = 'tiny boxname';
+  nameInp.placeholder = '(unnamed)';
+  nameInp.value = box.name || '';
+  nameInp.title = 'Box name';
+  nameInp.onchange = async () => {
+    try {
+      await api('/api/box/setField', { method: 'POST', body: JSON.stringify({ box: box.index, field: '@name', value: nameInp.value }) });
+      setDirty(true);
+      refreshUndoButtons();
+      await loadParty();
+    } catch (e) { toast(e.message, true); }
+  };
+  bh.append(nameInp);
+
+  const bgInp = el('input');
+  bgInp.type = 'number';
+  bgInp.className = 'tiny boxbg';
+  bgInp.min = 0;
+  bgInp.title = 'Box wallpaper id';
+  bgInp.value = box.background ?? 0;
+  bgInp.onchange = async () => {
+    try {
+      await api('/api/box/setField', { method: 'POST', body: JSON.stringify({ box: box.index, field: '@background', value: bgInp.value }) });
+      setDirty(true);
+      refreshUndoButtons();
+      await loadParty();
+    } catch (e) { toast(e.message, true); }
+  };
+  bh.append(el('span', 'fieldhint', 'wallpaper'), bgInp);
+  bh.append(el('span', 'fieldhint', `${box.count} of ${box.size}`));
+  bh.append(el('span', 'spacer'));
+  if (box.count > 1) {
+    const sort = el('button', 'tiny', 'Sort box');
+    sort.title = 'Sort this box\'s Pokémon by species, compacted to the front';
+    sort.onclick = async () => {
+      try {
+        await api('/api/box/sort', { method: 'POST', body: JSON.stringify({ box: box.index }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Sorted box ${box.index + 1}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    bh.append(sort);
+  }
+  card.append(bh);
+
+  const grid = el('div', 'boxgrid');
+  const bySlot = new Map(box.pokemon.map((m) => [m.slot, m]));
+  for (let i = 0; i < box.size; i++) grid.append(boxCell(bySlot.get(i) || null, box));
+  card.append(grid);
+
+  const selSlot = selectedSlot[box.index];
+  const selMon = selSlot === undefined ? null : bySlot.get(selSlot);
+  if (selMon) {
+    card.append(monCard(selMon, `Box ${box.index + 1} slot ${selMon.slot + 1}`, { where: 'box', box: box.index, slot: selMon.slot }));
+  }
+  return card;
+}
+
+function draw() {
   const body = $('#partyBody');
   body.innerHTML = '';
-  const { party } = await api('/api/party');
+  const active = filterActive();
+
   const pc = el('div', 'card');
-  const ph = el('h3', 'flexhead', `Party (${party.length})`);
-  if (party.length) {
+  const ph = el('h3', 'flexhead', `Party (${partyData.length})`);
+  if (partyData.length) {
     ph.append(el('span', 'spacer'));
     const heal = el('button', 'tiny', 'Heal party');
     heal.title = 'Restore every party Pokémon to full HP, cure status, and refill move PP';
@@ -293,41 +613,61 @@ export async function loadParty() {
       } catch (e) { toast(e.message, true); }
     };
     ph.append(heal);
+
+    const candyLevel = el('input');
+    candyLevel.type = 'number';
+    candyLevel.min = 1;
+    candyLevel.max = 100;
+    candyLevel.value = 100;
+    candyLevel.title = 'Level to set the whole party to';
+    candyLevel.style.width = '55px';
+    const candy = el('button', 'tiny', 'Rare candy party to level');
+    candy.title = 'Set every party Pokémon to this level and recompute stats';
+    candy.onclick = async () => {
+      try {
+        const r = await api('/api/party/rareCandy', { method: 'POST', body: JSON.stringify({ level: Number(candyLevel.value) }) });
+        setDirty(true);
+        refreshUndoButtons();
+        toast(`Set ${r.count} Pokémon to level ${r.level}`);
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    ph.append(candy, candyLevel);
   }
   pc.append(ph);
   body.append(pc);
-  if (!party.length) pc.append(el('div', 'empty', 'The party is empty.'));
-  party.forEach((m, i) => m && body.append(monCard(m, `Party ${i + 1}`, { where: 'party', index: i })));
+  if (!partyData.length) pc.append(el('div', 'empty', 'The party is empty.'));
+  const shown = partyData.filter((m) => m && (!active || monMatchesFilter(m)));
+  if (active && partyData.length && !shown.length) pc.append(el('div', 'empty', 'No party Pokémon match the filter.'));
+  partyData.forEach((m, i) => {
+    if (!m || (active && !monMatchesFilter(m))) return;
+    body.append(monCard(m, `Party ${i + 1}`, { where: 'party', index: i, total: partyData.length }));
+  });
 
-  const { boxes } = await api('/api/boxes');
-  allBoxes = boxes;
-  const filled = boxes.filter((b) => b.count > 0);
   const bc = el('div', 'card');
-  bc.append(el('h3', null, `Boxes (${filled.length} of ${boxes.length} in use)`));
+  bc.append(el('h3', null, `Boxes (${boxesData.filter((b) => b.count > 0).length} of ${boxesData.length} in use)`));
   body.append(bc);
-  if (!filled.length) bc.append(el('div', 'empty', 'All boxes are empty.'));
-  for (const b of filled) {
-    const bh = el('div', 'flexhead boxhead');
-    bh.append(el('span', null, `Box ${b.index + 1}${b.name ? ` "${b.name}"` : ''}: ${b.count} of ${b.size}`));
-    if (b.count > 1) {
-      const sort = el('button', 'tiny', 'Sort box');
-      sort.title = 'Sort this box\'s Pokémon by species, compacted to the front';
-      sort.onclick = async () => {
-        try {
-          await api('/api/box/sort', { method: 'POST', body: JSON.stringify({ box: b.index }) });
-          setDirty(true);
-          refreshUndoButtons();
-          await loadParty();
-          toast(`Sorted box ${b.index + 1}`);
-        } catch (e) { toast(e.message, true); }
-      };
-      bh.append(sort);
-    }
-    body.append(bh);
-    b.pokemon.forEach((m) => body.append(
-      monCard(m, `Box ${b.index + 1} slot ${m.slot + 1}`, { where: 'box', box: b.index, slot: m.slot }),
-    ));
+  for (const b of boxesData) body.append(boxCard(b));
+}
+
+let filterWired = false;
+function wirePartyFilter() {
+  if (filterWired) return;
+  filterWired = true;
+  for (const id of ['#partyFilter', '#partyShinyOnly', '#partyLevelMin', '#partyLevelMax']) {
+    $(id).addEventListener('input', draw);
   }
+}
+
+export async function loadParty() {
+  wirePartyFilter();
+  await ensureKindOptions('moves');
+  const { party } = await api('/api/party');
+  const { boxes } = await api('/api/boxes');
+  partyData = party;
+  boxesData = boxes;
+  allBoxes = boxes;
+  draw();
   fillBoxPicker();
 }
 
@@ -379,12 +719,17 @@ export async function initAddForm() {
   const preview = () => {
     const id = pickId($('#addSpeciesText').value, speciesOpts);
     const hit = speciesOpts.find((o) => o.id === id);
-    $('#addPreview').textContent = hit
-      ? `Will create ${hit.label} at level ${$('#addLevel').value || '?'}.`
-      : ($('#addSpeciesText').value.trim() ? 'No species matches that.' : '');
+    if (!hit) {
+      $('#addPreview').textContent = $('#addSpeciesText').value.trim() ? 'No species matches that.' : '';
+      return;
+    }
+    $('#addPreview').textContent = $('#addEgg').checked
+      ? `Will create an egg of ${hit.label}.`
+      : `Will create ${hit.label} at level ${$('#addLevel').value || '?'}.`;
   };
   $('#addSpeciesText').oninput = preview;
   $('#addLevel').oninput = preview;
+  $('#addEgg').onchange = preview;
 
   $('#addGo').onclick = async () => {
     const species = pickId($('#addSpeciesText').value, speciesOpts);
@@ -404,6 +749,7 @@ export async function initAddForm() {
       ability: $('#addAbility').value === '' ? undefined : Number($('#addAbility').value),
       target: $('#addTarget').value,
       box: Number($('#addBoxNum').value) || 0,
+      egg: $('#addEgg').checked,
     };
     try {
       const r = await api('/api/pokemon/add', { method: 'POST', body: JSON.stringify(body) });

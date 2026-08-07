@@ -52,6 +52,7 @@ export const CLASS_FIELDS = {
     '@outfit': F('Outfit', { note: 'costume/appearance index; the game itself changes this at certain story switches' }),
     '@language': F('Language'),
     '@id': F('Trainer ID', { note: '32-bit; secret ID is the high 16 bits' }),
+    '@gender': F('Gender', { options: OPT([[0, '0 - Male'], [1, '1 - Female']]) }),
     '@metaID': F('Meta ID'),
     '@expall': F('Exp. All active', { note: 'boolean' }),
     '@seen': F('Pokedex seen', { note: 'one flag per species' }),
@@ -86,7 +87,7 @@ export const CLASS_FIELDS = {
       ]),
     }),
     '@statusCount': F('Status counter', { note: 'sleep: turns left; poison/burn/paralysis/frozen: usually 0' }),
-    '@eggsteps': F('Egg steps', { note: "0 means it is not an egg. Pokémon created in this editor as an egg get a placeholder value of 1, not the species' real hatch-cycle count." }),
+    '@eggsteps': F('Egg steps', { note: '0 means it is not an egg. Pokémon created in this editor as an egg get the species\' real hatch-cycle count.' }),
     '@ballused': F('Ball used', { kind: 'items', note: 'item id of the Poké Ball it was caught in' }),
     '@markings': F('Markings', {
       mask: [{ bit: 0, label: '●' }, { bit: 1, label: '■' }, { bit: 2, label: '▲' }, { bit: 3, label: '♥' }],

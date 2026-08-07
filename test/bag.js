@@ -1,6 +1,6 @@
 // Adds items to a real save's bag and checks they land in the right pocket,
 // stack correctly, and survive a Marshal round trip.
-import { addItem, MAX_QUANTITY } from '../src/bag.js';
+import { addItem, removeItem, MAX_QUANTITY } from '../src/bag.js';
 import { itemPocket } from '../src/gamedata.js';
 import { loadAll, dumpAll } from '../src/marshal.js';
 import * as views from '../src/views.js';
@@ -55,6 +55,19 @@ check('the two pockets stay separate',
 const rejects = (fn) => { try { fn(); return false; } catch { return true; } };
 check('rejects an unknown item id', rejects(() => addItem(save, { item: 999999, qty: 1 })));
 check('rejects a non-integer item id', rejects(() => addItem(save, { item: NaN, qty: 1 })));
+
+// --- removeItem deletes the whole entry, not just its quantity ----------------
+const keyPocketIdx = itemPocket(KEY_ITEM);
+const keyPocketBefore = views.bag(save)[keyPocketIdx];
+const keyRowIdx = keyPocketBefore.items.findIndex((i) => i.id === KEY_ITEM);
+const keyQtyNow = keyPocketBefore.items[keyRowIdx].qty; // == r4.qty
+check('rejects an out-of-range item index', rejects(() => removeItem(save, keyPocketIdx, 999)));
+const r5 = removeItem(save, keyPocketIdx, keyRowIdx);
+check('removeItem reports the removed item\'s id', r5.id === KEY_ITEM, String(r5.id));
+check('removeItem deletes the entry entirely',
+  !views.bag(save)[keyPocketIdx].items.some((i) => i.id === KEY_ITEM));
+// put back exactly what removeItem just deleted, so the cleanup below still applies
+addItem(save, { item: KEY_ITEM, qty: keyQtyNow });
 
 // --- survives a Marshal round trip ---------------------------------------------
 const dumped = dumpAll(save.streams);

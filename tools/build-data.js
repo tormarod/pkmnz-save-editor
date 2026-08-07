@@ -8,8 +8,10 @@
 //   Data/System.rxdata    variable and switch names (the RPG Maker editor names)
 //   Data/MapInfos.rxdata  map names
 //   Data/dexdata.dat      base stats, gender rate, happiness, growth rate, base exp
-//   PBS/*.txt             species / item / move / ability / trainer-type names,
-//                         and level-up movesets
+//   PBS/*.txt             species / item / move / ability / trainer-type / type
+//                         names, level-up movesets, types, EVs, egg groups/moves/
+//                         hatch steps, height/weight/kind/dex text, evolutions,
+//                         and form names
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -84,6 +86,30 @@ const abilities = pbsList('PBS/abilities.txt');
 const trainerTypes = pbsList('PBS/trainertypes.txt');
 
 const moveByName = new Map(Object.entries(moves).map(([id, m]) => [m.i, Number(id)]));
+const abilityByName = new Map(Object.entries(abilities).map(([id, a]) => [a.i, Number(id)]));
+
+// --- [n]-bracketed PBS files (pokemon.txt, types.txt): parse the requested
+// key=value lines into one object per bracket section.
+function pbsSections(rel, keys) {
+  const t = text(rel) || '';
+  const out = {};
+  const re = new RegExp(`^(${keys.join('|')})\\s*=\\s*(.*)$`);
+  let cur = null;
+  for (const line of t.split(/\r?\n/)) {
+    const sec = /^\[(\d+)\]/.exec(line);
+    if (sec) { cur = Number(sec[1]); out[cur] = {}; continue; }
+    if (cur === null) continue;
+    const m = re.exec(line);
+    if (m) out[cur][m[1]] = m[2].trim();
+  }
+  return out;
+}
+
+// --- types.txt -----------------------------------------------------------------
+const pbsTypes = pbsSections('PBS/types.txt', ['Name', 'InternalName']);
+const types = {};
+for (const [id, t] of Object.entries(pbsTypes)) types[id] = { n: t.Name || `TYPE${id}`, i: t.InternalName || '' };
+const typeByInternal = new Map(Object.entries(pbsTypes).map(([id, t]) => [t.InternalName, Number(id)]));
 
 // --- species: names + level-up moves from PBS, numbers from dexdata.dat -------
 const RECORD = 76;
@@ -91,16 +117,12 @@ const OFF = { baseStats: 10, genderRate: 18, happiness: 19, growthRate: 20, base
 const dex = new Uint8Array(readFileSync(join(GAME_DIR, 'Data/dexdata.dat')));
 const speciesCount = Math.floor(dex.length / RECORD);
 
-const ptxt = text('PBS/pokemon.txt') || '';
-const pbsSpecies = {};
-let cur = null;
-for (const line of ptxt.split(/\r?\n/)) {
-  const sec = /^\[(\d+)\]/.exec(line);
-  if (sec) { cur = Number(sec[1]); pbsSpecies[cur] = {}; continue; }
-  if (cur === null) continue;
-  const m = /^(Name|InternalName|Moves)\s*=\s*(.*)$/.exec(line);
-  if (m) pbsSpecies[cur][m[1]] = m[2].trim();
-}
+const pbsSpecies = pbsSections('PBS/pokemon.txt', [
+  'Name', 'InternalName', 'Type1', 'Type2', 'Moves', 'Abilities', 'HiddenAbility',
+  'EffortPoints', 'Compatibility', 'EggMoves', 'StepsToHatch', 'Height', 'Weight',
+  'Kind', 'Pokedex', 'Rareness', 'Evolutions', 'FormNames',
+]);
+const speciesByInternal = new Map(Object.entries(pbsSpecies).map(([id, p]) => [p.InternalName, Number(id)]));
 
 const species = {};
 for (let id = 1; id <= speciesCount; id++) {
@@ -116,6 +138,23 @@ for (let id = 1; id <= speciesCount; id++) {
       if (Number.isFinite(lvl) && mid) lm.push([lvl, mid]);
     }
   }
+  const ab = (p.Abilities || '').split(',').map((n) => abilityByName.get(n.trim())).filter(Boolean);
+  const ha = p.HiddenAbility ? abilityByName.get(p.HiddenAbility.trim()) || 0 : 0;
+  const em = (p.EggMoves || '').split(',').map((n) => moveByName.get(n.trim())).filter(Boolean);
+  const cp = (p.Compatibility || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const fn = p.FormNames ? p.FormNames.split(',').map((s) => s.trim()) : [];
+
+  const evo = [];
+  if (p.Evolutions) {
+    const parts = p.Evolutions.split(',');
+    for (let i = 0; i + 2 < parts.length; i += 3) {
+      const targetId = speciesByInternal.get(parts[i]?.trim());
+      const method = parts[i + 1]?.trim();
+      const param = parts[i + 2]?.trim();
+      if (targetId) evo.push([targetId, method, param]);
+    }
+  }
+
   species[id] = {
     n: p.Name || `SPECIES${id}`,
     i: p.InternalName || '',
@@ -125,6 +164,21 @@ for (let id = 1; id <= speciesCount; id++) {
     gr: b(OFF.growthRate),
     xp: b(OFF.baseExp) | (b(OFF.baseExp + 1) << 8),
     lm,
+    ab,
+    ha,
+    t1: typeByInternal.get(p.Type1) || 0,
+    t2: p.Type2 ? (typeByInternal.get(p.Type2) || 0) : 0,
+    ep: (p.EffortPoints || '').split(',').map((n) => Number(n) || 0),
+    cp,
+    em,
+    hs: Number(p.StepsToHatch) || 0,
+    ht: Number(p.Height) || 0,
+    wt: Number(p.Weight) || 0,
+    kd: p.Kind || '',
+    dx: p.Pokedex || '',
+    rn: Number(p.Rareness) || 0,
+    evo,
+    fn,
   };
 }
 
@@ -140,6 +194,7 @@ const bundle = {
   moves,
   abilities,
   trainerTypes,
+  types,
 };
 
 mkdirSync(dirname(OUT), { recursive: true });
@@ -147,4 +202,4 @@ writeFileSync(OUT, JSON.stringify(bundle));
 const kb = (n) => `${Math.round(n / 1024)} KB`;
 console.log(`wrote data/gamedata.json  (${kb(readFileSync(OUT).length)})`);
 console.log(`  ${Object.keys(bundle.variables).length} variable names, ${Object.keys(bundle.switches).length} switch names`);
-console.log(`  ${speciesCount} species, ${Object.keys(items).length} items, ${Object.keys(moves).length} moves, ${Object.keys(maps).length} maps`);
+console.log(`  ${speciesCount} species, ${Object.keys(items).length} items, ${Object.keys(moves).length} moves, ${Object.keys(maps).length} maps, ${Object.keys(types).length} types`);

@@ -8,9 +8,10 @@
 import {
   RArray, jsToStr, strToJs, getIvar as ivar, setIvar,
 } from './marshal.js';
-import { makePokemon } from './create.js';
+import { makePokemon, newMove, recalcStats } from './create.js';
 import { nameOf } from './labels.js';
-import { movePP } from './gamedata.js';
+import { movePP, moveData, movesAtLevel, speciesData } from './gamedata.js';
+import { levelFromExperience, startExperience, MAXLEVEL } from './expTable.js';
 
 export const PARTY_MAX = 6;
 export const BOX_SIZE = 30;
@@ -93,6 +94,18 @@ export function addAnywhere(save, opts) {
   throw new Error('the party and every box are full');
 }
 
+/** Swap two party slots in place - the lead Pokemon matters in game, and this is the only way to change it. */
+export function swapParty(save, a, b) {
+  const party = partyArray(save);
+  const ia = Math.floor(Number(a));
+  const ib = Math.floor(Number(b));
+  if (ia < 0 || ia >= party.items.length || ib < 0 || ib >= party.items.length) {
+    throw new Error(`no party slot ${ia < 0 || ia >= party.items.length ? ia : ib}`);
+  }
+  [party.items[ia], party.items[ib]] = [party.items[ib], party.items[ia]];
+  return { count: party.items.length };
+}
+
 export function removeFromParty(save, index) {
   const party = partyArray(save);
   if (index < 0 || index >= party.items.length) throw new Error(`no party slot ${index}`);
@@ -141,14 +154,122 @@ export function healParty(save) {
     setIvar(mon, '@hp', ivar(mon, '@totalhp') ?? 0);
     setIvar(mon, '@status', 0);
     setIvar(mon, '@statusCount', 0);
-    for (const m of ivar(mon, '@moves')?.items || []) {
-      const id = ivar(m, '@id');
-      if (!id) continue;
-      setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
-    }
+    restoreMovePP(mon);
     healed++;
   }
   return { healed };
+}
+
+/** Rare candy the whole party to `level`: sets @exp to that level's threshold and recomputes stats. */
+export function setPartyLevel(save, level) {
+  const lvl = Math.max(1, Math.min(MAXLEVEL, Math.floor(Number(level)) || 1));
+  const party = partyArray(save);
+  let count = 0;
+  for (const mon of party.items) {
+    if (!mon || mon.t !== 'obj') continue;
+    const sd = speciesData(ivar(mon, '@species'));
+    setIvar(mon, '@exp', startExperience(lvl, sd.growthRate));
+    recalcStats(mon);
+    count++;
+  }
+  return { level: lvl, count };
+}
+
+function requirePokemon(mon) {
+  if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
+    throw new Error('not a PokeBattle_Pokemon');
+  }
+}
+
+/**
+ * Learn a move: fills the first empty (id 0) slot in @moves, or appends one if
+ * the array holds fewer than four slots - mirrors how the game always keeps
+ * four PBMove slots, using id 0 for "no move".
+ */
+export function learnMove(mon, moveId) {
+  requirePokemon(mon);
+  const id = Math.floor(Number(moveId));
+  if (!moveData(id)) throw new Error(`move ${moveId} does not exist`);
+  const moves = ivar(mon, '@moves')?.items || [];
+  const empty = moves.find((m) => !ivar(m, '@id'));
+  if (empty) {
+    setIvar(empty, '@id', id);
+    setIvar(empty, '@pp', movePP(id));
+    setIvar(empty, '@ppup', 0);
+  } else if (moves.length < 4) {
+    moves.push(newMove(id));
+    setIvar(mon, '@moves', RArray(moves));
+  } else {
+    throw new Error('this Pokémon already knows four moves');
+  }
+  return id;
+}
+
+/** Forget a move: clears the slot back to id 0 rather than splicing the array. */
+export function forgetMove(mon, slotIndex) {
+  requirePokemon(mon);
+  const moves = ivar(mon, '@moves')?.items || [];
+  const slot = moves[Math.floor(Number(slotIndex))];
+  if (!slot) throw new Error('no such move slot');
+  const id = ivar(slot, '@id');
+  setIvar(slot, '@id', 0);
+  setIvar(slot, '@pp', 0);
+  setIvar(slot, '@ppup', 0);
+  return id;
+}
+
+/** Refill one Pokemon's known moves to their max PP (base PP plus PP Ups). */
+export function restoreMovePP(mon) {
+  requirePokemon(mon);
+  for (const m of ivar(mon, '@moves')?.items || []) {
+    const id = ivar(m, '@id');
+    if (!id) continue;
+    setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
+  }
+}
+
+/** Set a Pokemon's six EVs (0-252 each), clamping each value; caller recalcs stats. */
+export function setEVs(mon, evs) {
+  requirePokemon(mon);
+  const clamped = (Array.isArray(evs) ? evs : []).map((v) => Math.max(0, Math.min(252, Math.floor(Number(v)) || 0)));
+  while (clamped.length < 6) clamped.push(0);
+  setIvar(mon, '@ev', RArray(clamped.slice(0, 6)));
+}
+
+/** Set a Pokemon's happiness/friendship to its max (255). */
+export function maxHappiness(mon) {
+  requirePokemon(mon);
+  setIvar(mon, '@happiness', 255);
+}
+
+/** Set every known move's PP Ups to the max (3) and refill PP to match. */
+export function maxPPUps(mon) {
+  requirePokemon(mon);
+  for (const m of ivar(mon, '@moves')?.items || []) {
+    if (!ivar(m, '@id')) continue;
+    setIvar(m, '@ppup', 3);
+  }
+  restoreMovePP(mon);
+}
+
+/** Reset a Pokemon's moves to the level-up set for its species and current level. */
+export function relearnMoves(mon) {
+  requirePokemon(mon);
+  const species = ivar(mon, '@species');
+  const level = levelFromExperience(ivar(mon, '@exp') ?? 0, speciesData(species).growthRate);
+  const moveIds = movesAtLevel(species, level);
+  const moves = [];
+  for (let i = 0; i < 4; i++) moves.push(newMove(moveIds[i] || 0));
+  setIvar(mon, '@moves', RArray(moves));
+}
+
+/** Hatch an egg in place: clear the step counter, mark it as hatched, and heal to full. */
+export function hatchEgg(mon) {
+  requirePokemon(mon);
+  if (!(ivar(mon, '@eggsteps') > 0)) throw new Error('this Pokémon is not an egg');
+  setIvar(mon, '@eggsteps', 0);
+  setIvar(mon, '@obtainMode', 1); // 1 - Hatched from an egg, see CLASS_FIELDS
+  setIvar(mon, '@hp', ivar(mon, '@totalhp') ?? 0);
 }
 
 /** Sort a box's occupied slots by species id, compacted to the front. */
