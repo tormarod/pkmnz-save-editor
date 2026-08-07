@@ -210,8 +210,15 @@ export const CLASS_FIELDS = {
     '@fishing': F('Fishing', { note: 'boolean' }),
     '@runtoggle': F('Always-run toggle', { note: 'boolean' }),
     '@repel': F('Repel steps remaining'),
-    '@amuleto': F('Amulet Coin active', { note: 'boolean' }),
-    '@shinyzador': F('Shiny-boost effect active', { note: 'boolean' }),
+    // Not the Amulet Coin: this is the step budget shared by the eighteen type
+    // Amulets (switches 280-297). pbAmuleto sets it, every step off ice takes
+    // one off it, and at zero all eighteen switches clear together - so a
+    // counter above zero with every switch off just ticks down doing nothing.
+    // See the "Type amulets" card on the Game state tab.
+    '@amuleto': F('Type Amulet steps remaining', { note: 'shared by switches 280-297 — at 0 they all switch off' }),
+    // Declared and zeroed in 100_PField_Metadata.rb and never read again; the
+    // Shinyzador works through switch 457 instead.
+    '@shinyzador': F('Shinyzador counter (unused)', { note: 'nothing reads it — the shiny effect is switch 457' }),
     '@flashUsed': F('Flash used in the current cave', { note: 'boolean' }),
     '@bridge': F('Standing on a bridge', { note: 'boolean' }),
     '@runningShoes': F('Has Running Shoes', { note: 'boolean' }),

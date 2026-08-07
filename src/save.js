@@ -65,7 +65,18 @@ export class Save {
         }
         case 'i':
           if (!parent.items) throw new Error('not an array');
-          holder = { get: () => parent.items[step.i], set: (v) => { parent.items[step.i] = v; } };
+          holder = {
+            get: () => parent.items[step.i],
+            set: (v) => {
+              // Game_Switches#@data and Game_Variables#@data are only as long as
+              // the highest id the game has ever written, so a save mid-story
+              // has no slot for switch 502 at all. Ruby's `@data[502] = true`
+              // pads the gap with nil; do the same rather than leaving JS holes,
+              // which the Marshal writer cannot serialize.
+              for (let i = parent.items.length; i < step.i; i++) parent.items[i] = null;
+              parent.items[step.i] = v;
+            },
+          };
           break;
         case 'hk':
           holder = { get: () => parent.entries[step.i][0], set: (v) => { parent.entries[step.i][0] = v; } };

@@ -9,6 +9,9 @@ Thumbs.db
 *.bak
 _tmp*
 
+# research artifacts regenerated from the game install by tools/xref.js
+tools/_xref.json
+
 # ...except the anonymized CI fixture
 !test/fixtures/*.rxdata
 

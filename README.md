@@ -26,8 +26,12 @@ node tools/serve.js
 
 ## What it edits
 
-- **Variables / Switches** — all 1000 entries with the names from the RPG Maker
-  editor, filterable.
+- **Game state** — every variable and switch the game tracks, grouped into cards
+  and written up in plain Spanish: difficulty, the level cap, EXP multipliers,
+  the eighteen type Amulets, the quest board, counters and story flags. The RPG
+  Maker names are kept alongside, and still searchable. See
+  [docs/switches-variables.md](docs/switches-variables.md) for where every
+  description comes from.
 - **Trainer** — name, money, badges, Pokédex counts, flags.
 - **Bag** — every pocket, with real item names.
 - **Party & Boxes** — view and edit Pokémon, and **add new ones**, remove them,
@@ -135,12 +139,37 @@ so the published page needs no access to your files:
 | Map names | `Data/MapInfos.rxdata` |
 | Base stats, gender rate, happiness, growth rate | `Data/dexdata.dat` (76-byte records) |
 | Species / item / move / ability names, level-up movesets | `PBS/*.txt` |
+| Which switch/variable each script and event reads | `Data/Scripts.rxdata`, `Data/Map*.rxdata`, `Data/CommonEvents.rxdata` |
+| Descriptions and groups for the Game state tab | `data/annotations.json` |
 
 Regenerate it after a game update:
 
 ```bash
 node tools/build-data.js "C:/path/to/Pokemon Z"
 ```
+
+### Switch and variable descriptions
+
+`data/annotations.json` holds the text behind the Game state tab: ~290
+hand-written entries for everything a player would want to touch, and ~785
+generated ones for the story flags. Generated entries are marked `"gen": true`
+and are the only ones the generator rewrites — hand-written entries survive a
+regeneration byte-for-byte.
+
+```bash
+node tools/xref.js "C:/path/to/Pokemon Z"          # research dump, gitignored
+node tools/gen-annotations.js "C:/path/to/Pokemon Z"  # refill the generated entries
+```
+
+`tools/xref.js` walks all 507 maps, the common events and the 255 script
+sections and records, for every id, who writes it, who reads it, which event
+pages it gates and what values it takes. `tools/build-data.js` calls it directly,
+so the bundle has one source of truth — the game folder. The tags shown in the
+UI (`script`, `dead`, `wide`, `reserved`, `computed`) are all derived from that
+pass rather than stored by hand, so they cannot go stale.
+
+The map-id → chapter table that groups the story flags is the one judgement call
+in the pipeline and lives alone in `tools/chapters.js`.
 
 `src/expTable.js` is likewise generated, straight out of the game's own
 `PBExperience` script inside `Data/Scripts.rxdata`:
@@ -211,6 +240,11 @@ npm test
   all 1018 species.
 - `test/create.js` checks generated stats against hand-computed values and
   confirms injected Pokémon can be removed byte-cleanly.
+- `test/gamestate.js` covers the Game state tab's data layer, including the case
+  that motivated it: a save's `Game_Switches#@data` only runs as far as the
+  highest id the game has written, so a mid-story save has no slot at all for
+  switch 502. The tab offers it anyway, and writing it extends the array with
+  `nil` the way Ruby's `@data[502] = true` does.
 - `test/bignum.js` guards the Fixnum/Bignum boundary.
 - `test/recalc.js` checks that EVs actually move the stats, that writing `@ev`
   alone leaves them stale, and that editing one through the API recomputes them.

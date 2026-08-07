@@ -12,6 +12,10 @@
   <span class="nav-brand">Pokémon Z <span>save editor</span></span>
   <span id="openName" class="openname hidden"></span>
   <div class="openbar">
+    <select id="langPick" class="langpick" aria-label="Language">
+      <option value="es">Español</option>
+      <option value="en">English</option>
+    </select>
     <span id="dirty" class="tag tag-outline hidden">unsaved edits</span>
     <button id="changesOpen" class="ghost hidden" title="Everything you've changed so far">Changes <span id="changesCount" class="fieldhint">(0)</span></button>
     <button id="searchOpen" class="ghost icon hidden" title="Search everything (Ctrl+K)" aria-label="Search">
@@ -74,8 +78,7 @@
 </div>
 
 <nav class="tabs hidden">
-  <button data-tab="variables" class="active">Variables</button>
-  <button data-tab="switches">Switches</button>
+  <button data-tab="gamestate" class="active" id="tabGameState">Game state</button>
   <button data-tab="trainer">Trainer</button>
   <button data-tab="world">World</button>
   <button data-tab="options">Options</button>
@@ -86,24 +89,16 @@
 </nav>
 
 <main class="hidden">
-  <div class="panel" data-panel="variables">
-    <p class="hint">All 1000 variables the game tracks, named from the RPG Maker project. Most stay at their default — search, or leave "only named" on to skip the noise.</p>
+  <div class="panel" data-panel="gamestate">
+    <p class="hint" id="gsHint"></p>
     <div class="controls">
-      <input type="search" id="varFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="varOnlySet" checked><span class="switchbtn"></span> Only named or non-default</label>
-      <span id="varCount" class="count"></span>
+      <input type="search" id="gsFilter">
+      <select id="gsGroup"></select>
+      <label class="check"><input type="checkbox" id="gsOnlySet" checked><span class="switchbtn"></span> <span id="gsOnlySetLabel"></span></label>
+      <label class="check"><input type="checkbox" id="gsShowDead"><span class="switchbtn"></span> <span id="gsShowDeadLabel"></span></label>
+      <span id="gsCount" class="count"></span>
     </div>
-    <div id="varList"></div>
-  </div>
-
-  <div class="panel hidden" data-panel="switches">
-    <p class="hint">All 1000 switches — on/off flags the game's events set. A switch that's never been touched reads as off.</p>
-    <div class="controls">
-      <input type="search" id="swFilter" placeholder="Filter by number or name…">
-      <label class="check"><input type="checkbox" id="swOnlySet" checked><span class="switchbtn"></span> Only named or non-default</label>
-      <span id="swCount" class="count"></span>
-    </div>
-    <div id="swList"></div>
+    <div id="gsList"></div>
   </div>
 
   <div class="panel hidden" data-panel="trainer"><div id="trainerBody"></div></div>

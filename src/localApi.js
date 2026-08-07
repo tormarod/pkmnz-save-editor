@@ -265,6 +265,7 @@ const ROUTES = {
   // how many rows it is holding back.
   '/api/variables': (b) => ({ rows: views.variables(need(), !!b.onlySet), total: views.variables(need()).length }),
   '/api/switches': (b) => ({ rows: views.switches(need(), !!b.onlySet), total: views.switches(need()).length }),
+  '/api/gamestate': (b) => ({ rows: views.gameState(need(), !!b.onlySet), total: views.gameState(need()).length }),
   '/api/trainer': () => views.trainer(need()),
   '/api/world': () => views.world(need()),
   '/api/player': () => views.player(need()),

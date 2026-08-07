@@ -5,7 +5,7 @@
 import {
   SECTIONS, fieldInfo, NATURES, CLASS_FIELDS,
 } from './schema.js';
-import { labels, nameOf, special } from './labels.js';
+import { labels, nameOf, tagsOf, entryOf } from './labels.js';
 import { strToJs, floatText, getIvar as ivar } from './marshal.js';
 import { typeOf, isScalar, editValue, preview } from './save.js';
 import {
@@ -81,7 +81,6 @@ export function summary(save) {
 function indexedList(save, sectionKey, labelTable, onlySet) {
   const data = ivar(save.section(sectionKey), '@data');
   if (!data) return [];
-  const names = labels()[labelTable];
   const out = [];
   // A switch that has never been touched by an event reads as nil, not
   // false - Ruby treats both as "off", so present it as an unchecked box
@@ -90,7 +89,7 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
   const isSwitches = sectionKey === 'switches';
   data.items.forEach((v, i) => {
     if (i === 0) return; // index 0 is unused in RPG Maker
-    const named = names[i];
+    const named = nameOf(labelTable, i);
     const isDefault = v === null || v === 0 || v === false;
     if (onlySet && !named && isDefault) return;
     const untouchedSwitch = isSwitches && v === null;
@@ -98,7 +97,7 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
       index: i,
       name: named || null,
       label: `${isSwitches ? 'Switch' : 'Variable'} ${i}${named ? ` "${named}"` : ''}`,
-      special: special(named),
+      tags: tagsOf(labelTable, i),
       type: untouchedSwitch ? 'bool' : typeOf(v),
       value: untouchedSwitch ? false : (isScalar(v) ? editValue(v) : null),
       preview: preview(v),
@@ -111,6 +110,63 @@ function indexedList(save, sectionKey, labelTable, onlySet) {
 
 export const variables = (save, onlySet = false) => indexedList(save, 'variables', 'variables', onlySet);
 export const switches = (save, onlySet = false) => indexedList(save, 'switches', 'switches', onlySet);
+
+/**
+ * Switches and variables as one list for the Game state tab: same rows as
+ * indexedList, plus the group, the annotation and the map they belong to.
+ *
+ * Rows stay language-neutral - both `es` and `en` come through untouched and
+ * the UI picks one - so this stays testable without a locale loaded. The
+ * Marshal `path` is the one indexedList already built, so writes still go
+ * through the generic Save#set with no new save logic.
+ */
+export function gameState(save, onlySet = false) {
+  const out = [];
+  for (const [kind, table] of [['switch', 'switches'], ['variable', 'variables']]) {
+    const rows = new Map();
+    for (const r of indexedList(save, table, table, onlySet)) rows.set(r.index, r);
+
+    // A save's @data array only runs as far as the highest id the game has
+    // written, so a mid-story save has no slot for switch 502 - which is
+    // exactly the badge flag someone opens this tab to find. Add a row for
+    // every id we have a name or a description for; the game reads a missing
+    // slot as nil, so an absent switch is off and an absent variable is unset,
+    // and writing one extends the array the way Ruby does.
+    for (const id of Object.keys(labels()[table] || {}).map(Number)) {
+      if (!Number.isFinite(id) || id < 1 || rows.has(id)) continue;
+      const isSwitch = kind === 'switch';
+      const named = nameOf(table, id);
+      if (onlySet && !named) continue;
+      rows.set(id, {
+        index: id,
+        name: named || null,
+        label: `${isSwitch ? 'Switch' : 'Variable'} ${id}${named ? ` "${named}"` : ''}`,
+        tags: tagsOf(table, id),
+        type: isSwitch ? 'bool' : 'nil',
+        value: isSwitch ? false : null,
+        preview: null,
+        scalar: true,
+        absent: true,
+        path: [{ k: 's', i: S(table) }, { k: 'v', name: '@data' }, { k: 'i', i: id }],
+      });
+    }
+
+    for (const r of [...rows.values()].sort((a, b) => a.index - b.index)) {
+      const e = entryOf(table, r.index);
+      out.push({
+        ...r,
+        kind,
+        group: e.g || 'none',
+        es: e.es || null,
+        en: e.en || null,
+        mapId: e.m ?? null,
+        mapName: e.m ? nameOf('maps', e.m) : null,
+        mapCount: e.mc ?? (e.m ? 1 : 0),
+      });
+    }
+  }
+  return out;
+}
 
 /** A boundInput()-ready descriptor for one named ivar, or null if it isn't set on this object. */
 function describeField(obj, base, cls, name) {

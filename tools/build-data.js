@@ -17,6 +17,8 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadAll, strToJs, getIvar as ivar } from '../src/marshal.js';
+import { buildXref } from './xref.js';
+import { GROUPS, GROUP_ORDER, OPEN_BY_DEFAULT } from './groups.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '..', 'data', 'gamedata.json');
@@ -182,12 +184,64 @@ for (let id = 1; id <= speciesCount; id++) {
   };
 }
 
+// --- variables and switches: names + descriptions ----------------------------
+//
+// Each entry grows from a bare name string into
+// `{ n, g, es, en, tag, m, mc }` - dev name, group, the Spanish and English
+// label/description pair, tags, dominant map id and map count. `n` still means
+// the RPG Maker editor name, so everything that already read it keeps working.
+//
+// Tags are derived here rather than stored in annotations.json: `script`,
+// `dead`, `wide`, `reserved` and `computed` are all facts about the game files,
+// and a hand-maintained copy would go stale the moment the game updates. Only
+// editorial tags (`inverted`) come from the annotations.
+const RESERVED_RE = /^-+\s*RESERVED\s*-+$/i;
+
+const xref = buildXref(GAME_DIR);
+const annotations = JSON.parse(readFileSync(join(HERE, '..', 'data', 'annotations.json'), 'utf8'));
+
+function annotate(kind) {
+  const names = namesFrom(kind === 'switches' ? '@switches' : '@variables');
+  const notes = annotations[kind] || {};
+  const facts = xref[kind] || {};
+  const out = {};
+
+  // Annotated ids the editor never named still deserve a row.
+  const ids = [...new Set([...Object.keys(names), ...Object.keys(notes)])]
+    .map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+
+  for (const id of ids) {
+    const name = names[id] || '';
+    const note = notes[id] || {};
+    const rec = facts[id];
+
+    const tag = new Set(note.tag || []);
+    if (RESERVED_RE.test(name)) tag.add('reserved');
+    if (name.startsWith('s:')) tag.add('computed');
+    if (rec?.scriptRead?.length || rec?.scriptWrite?.length) tag.add('script');
+    if (rec?.dead) tag.add('dead');
+    if (rec?.mapCount >= 40) tag.add('wide');
+
+    const e = { n: name, g: note.g || 'none' };
+    if (note.es) e.es = note.es;
+    if (note.en) e.en = note.en;
+    if (tag.size) e.tag = [...tag];
+    if (rec?.dominantMap) e.m = rec.dominantMap;
+    if (rec?.mapCount > 1) e.mc = rec.mapCount;
+    out[id] = e;
+  }
+  return out;
+}
+
 const bundle = {
   generatedAt: new Date().toISOString().slice(0, 10),
   gameTitle: (text('Game.ini') || '').match(/^Title=(.*)$/m)?.[1]?.trim() || 'Pokemon Z',
   speciesCount,
-  variables: namesFrom('@variables'),
-  switches: namesFrom('@switches'),
+  variables: annotate('variables'),
+  switches: annotate('switches'),
+  groups: GROUPS,
+  groupOrder: GROUP_ORDER,
+  groupsOpen: OPEN_BY_DEFAULT,
   maps,
   species,
   items,

@@ -108,8 +108,9 @@ try {
     check('opening a save reveals the tabs', await page.locator('nav.tabs').isVisible());
     const summary = await page.locator('#summary').innerText();
     check('the summary names the slot variable', /SLOT \(VAR 99\)/.test(summary), summary.split('\n').slice(0, 4).join(' '));
-    const vars = await page.locator('#varList').innerText();
-    check('variables are labeled from the bundle', /NO TOCAR|Temp Pokemon Choice/.test(vars));
+    const state = await page.locator('#gsList').innerText();
+    check('the game state tab is described from the bundle',
+      /Nuzlocke|obediencia|Amuleto/.test(state), state.split('\n').slice(0, 3).join(' '));
     check('still no console errors after opening', consoleErrors.length === 0, consoleErrors.join(' | '));
   }
 
