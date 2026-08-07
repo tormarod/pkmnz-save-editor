@@ -14,6 +14,17 @@ import {
 let allBoxes = [];
 let speciesOpts = [];
 
+// One labelled panel inside a Pokemon card. Its head holds the title and then,
+// pushed right by the spacer, whichever bulk actions edit this panel's fields.
+function section(title) {
+  const panel = el('section', 'subcard');
+  const head = el('div', 'flexhead subcard-head');
+  head.append(el('h4', 'subcard-title', title), el('span', 'spacer'));
+  const body = el('div', 'subcard-body');
+  panel.append(head, body);
+  return { panel, head, body };
+}
+
 function monCard(mon, title, loc) {
   const monName = mon.nickname || mon.speciesName || `species ${mon.species}`;
   const card = el('div', 'card');
@@ -45,6 +56,18 @@ function monCard(mon, title, loc) {
   if (mon.totalhp) h.append(el('span', 'tag tag-outline', `HP ${mon.hp}/${mon.totalhp}`));
   card.append(h);
 
+  const general = section('General');
+  const stats = section('Stats');
+  const moves = section('Moves');
+  const extras = section('Contest & Ribbons');
+
+  // Appended once the Moves panel has its own two buttons, so it reads
+  // Restore PP / Relearn / Max PP Ups rather than leading with the last one.
+  let maxPPUps = null;
+
+  // The card-level row is only for placement and lifecycle — where this
+  // Pokemon lives and whether it exists. Everything that edits a field goes to
+  // the head of the panel that shows that field.
   const actions = el('div', 'monactions');
   if (loc) {
     let boxSel = null;
@@ -162,7 +185,7 @@ function monCard(mon, title, loc) {
         toast(`Maxed happiness for ${monName}`);
       } catch (e) { toast(e.message, true); }
     };
-    const maxPPUps = el('button', 'tiny', 'Max PP Ups');
+    maxPPUps = el('button', 'tiny', 'Max PP Ups');
     maxPPUps.title = 'Set every move\'s PP Ups to 3 and refill PP to match';
     maxPPUps.onclick = async () => {
       try {
@@ -173,7 +196,9 @@ function monCard(mon, title, loc) {
         toast(`Maxed PP Ups for ${monName}`);
       } catch (e) { toast(e.message, true); }
     };
-    actions.append(move, maxIVs, recalc, maxEVs, clearEVs, maxHappiness, maxPPUps);
+    actions.append(move);
+    general.head.append(maxHappiness);
+    stats.head.append(maxIVs, maxEVs, clearEVs, recalc);
     if (mon.egg) {
       const hatch = el('button', 'tiny', 'Hatch now');
       hatch.title = 'Instantly finish this egg\'s remaining steps and heal it to full HP';
@@ -188,16 +213,8 @@ function monCard(mon, title, loc) {
       };
       actions.append(hatch);
     }
-    actions.append(del);
+    actions.append(el('span', 'spacer'), del);
     card.append(actions);
-  }
-
-  if (mon.totalhp) {
-    const track = el('div', 'barTrack');
-    const fill = el('div', 'barFill');
-    fill.style.width = `${Math.round((mon.hp / mon.totalhp) * 100)}%`;
-    track.append(fill);
-    card.append(track);
   }
 
   // The game reads these six straight out of the save, so show what is stored.
@@ -207,7 +224,15 @@ function monCard(mon, title, loc) {
     chip.append(el('b', null, s.name), document.createTextNode(` ${s.value}`));
     statLine.append(chip);
   }
-  if (statLine.children.length) card.append(statLine);
+  if (statLine.children.length) stats.body.append(statLine);
+
+  if (mon.totalhp) {
+    const track = el('div', 'barTrack');
+    const fill = el('div', 'barFill');
+    fill.style.width = `${Math.round((mon.hp / mon.totalhp) * 100)}%`;
+    track.append(fill);
+    stats.body.append(track);
+  }
 
   const grid = el('div', 'grid');
 
@@ -244,7 +269,7 @@ function monCard(mon, title, loc) {
     if (f.note) row.append(el('span', 'note', f.note));
     grid.append(row);
   }
-  card.append(grid);
+  general.body.append(grid);
 
   // "Spe" for Speed, not "Spd" — too easy to misread as SpD (Sp. Defense).
   const STAT = ['HP', 'Atk', 'Def', 'Spe', 'SpA', 'SpD'];
@@ -269,7 +294,7 @@ function monCard(mon, title, loc) {
     });
     if (STAT_HINT[s.ivar]) line.append(el('span', 'fieldhint', `(${STAT_HINT[s.ivar]})`));
     wrap.append(line);
-    card.append(wrap);
+    stats.body.append(wrap);
 
     // A 252/252/6 preset spread is the most common competitive EV layout;
     // pick which two stats get 252 and which gets the last 6, rest stay 0.
@@ -300,7 +325,7 @@ function monCard(mon, title, loc) {
         } catch (e) { toast(e.message, true); }
       };
       spread.append(el('span', 'fieldhint', '252 in'), selA, el('span', 'fieldhint', '/ 252 in'), selB, el('span', 'fieldhint', '/ 6 in'), selC, applyBtn);
-      card.append(spread);
+      stats.body.append(spread);
     }
   }
 
@@ -336,7 +361,7 @@ function monCard(mon, title, loc) {
     }
     line.append(el('span', 'fieldhint', '(0–255)'));
     wrap.append(line);
-    card.append(wrap);
+    extras.body.append(wrap);
   }
 
   // Ribbons: a plain array of ribbon ids. Shown as removable chips with an
@@ -389,14 +414,9 @@ function monCard(mon, title, loc) {
   };
   renderRibbons(mon.ribbons || []);
   ribbonWrap.append(ribbonLine);
-  card.append(ribbonWrap);
-
-  const moveWrap = el('div', 'field');
-  moveWrap.append(el('label', null, 'Moves'));
-  const moveBody = el('div');
+  extras.body.append(ribbonWrap);
 
   if (mon.moves.length) {
-    const actions = el('div', 'badges');
     const restore = el('button', 'tiny', 'Restore PP');
     restore.title = 'Refill every move to its max PP';
     restore.onclick = async () => {
@@ -418,8 +438,7 @@ function monCard(mon, title, loc) {
         await loadParty();
       } catch (e) { toast(e.message, true); }
     };
-    actions.append(restore, relearn);
-    moveBody.append(actions);
+    moves.head.append(restore, relearn);
   }
 
   if (mon.moves.length) {
@@ -459,7 +478,7 @@ function monCard(mon, title, loc) {
       tbody.append(tr);
     });
     table.append(tbody);
-    moveBody.append(table);
+    moves.body.append(table);
   }
 
   if (mon.moves.length < 4) {
@@ -482,10 +501,15 @@ function monCard(mon, title, loc) {
       } catch (e) { toast(e.message, true); }
     };
     addRow.append(addInp, addBtn);
-    moveBody.append(addRow);
+    moves.body.append(addRow);
   }
-  moveWrap.append(moveBody);
-  card.append(moveWrap);
+  if (maxPPUps) moves.head.append(maxPPUps);
+
+  // An egg has no stats to show and may have no moves; skip any panel that
+  // ended up with nothing in it rather than printing an empty heading.
+  for (const s of [general, stats, moves, extras]) {
+    if (s.body.childElementCount) card.append(s.panel);
+  }
   return card;
 }
 

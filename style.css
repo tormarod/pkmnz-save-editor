@@ -330,6 +330,28 @@ main { max-width: var(--page); margin: 0 auto; padding: var(--space-6) 20px 80px
 /* A select or number box sitting in a button row, sized to its content. */
 select.inline, input.inline { width: auto; min-height: 30px; padding: 3px 8px; font-size: 12.5px; }
 
+/* Sections within a Pokemon card. The identity header and the placement/remove
+   row stay on the card surface; each group of editable fields gets a panel of
+   its own, so General/Stats/Moves/awards stop running together. Each panel's
+   head carries the bulk actions that operate on that panel's fields.
+   The card's own padding leaves only a few px of surface around a panel, too
+   thin on its own to read as an edge — hence the hairline as well as the fill. */
+.subcard {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  background: var(--panel-2); border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  padding: var(--space-3) var(--space-4);
+}
+.subcard-head { gap: var(--space-2); row-gap: var(--space-1); }
+.subcard-title {
+  margin: 0; font-size: 11px; font-weight: 500; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--dim);
+}
+.subcard-body { display: flex; flex-direction: column; gap: var(--space-3); }
+/* A stat chip sits on --panel-2 out on a card, which is now the panel's own
+   colour — so inside a panel it lifts to the card surface to stay readable. */
+.subcard .statchip { background: var(--panel); }
+
 .boxhead { margin: 0; }
 .boxlabel { font-weight: 500; }
 .boxname { width: 140px; }
