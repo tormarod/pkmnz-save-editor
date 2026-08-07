@@ -4,6 +4,7 @@ import { labelCounts } from './src/labels.js';
 import { hashBytes, loadDraft, clearDraft } from './src/draftStore.js';
 import { $, el } from './src/ui/dom.js';
 import { initTheme } from './src/ui/theme.js';
+import { openModal, confirmModal, trapFocus } from './src/ui/modal.js';
 import {
   api, dirty, setDirty, refreshUndoButtons, onRecalculated, onChangesChanged, toast,
   setCurrentFile, getCurrentFileName, discardDraft, ensureItemOptions, ensureKindOptions,
@@ -64,9 +65,10 @@ function renderSummary(s) {
 async function revertChange(entry, changes) {
   const idx = changes.indexOf(entry);
   const laterCount = changes.length - idx - 1;
-  if (laterCount > 0 && !confirm(
+  if (laterCount > 0 && !(await confirmModal(
     `Reverting "${entry.desc}" will also undo ${laterCount} more recent change${laterCount === 1 ? '' : 's'}. Continue?`,
-  )) return;
+    { confirmLabel: 'Revert', danger: true },
+  ))) return;
   try {
     const r = await api('/api/changes/revert', {
       method: 'POST',
@@ -260,9 +262,14 @@ async function buildSearchIndex() {
 let searchIndex = null;
 let searchActiveIdx = -1;
 let searchShown = [];
+let untrapSearch = null;
 
 function closeSearch() {
-  $('#searchOverlay').classList.add('hidden');
+  const overlay = $('#searchOverlay');
+  if (overlay.classList.contains('hidden')) return;
+  overlay.classList.add('hidden');
+  if (untrapSearch) { untrapSearch(); untrapSearch = null; }
+  $('#searchOpen').focus();
 }
 
 function renderSearchResults(query) {
@@ -296,6 +303,7 @@ function renderSearchResults(query) {
 
 async function openSearch() {
   $('#searchOverlay').classList.remove('hidden');
+  untrapSearch = trapFocus($('#searchOverlay'), closeSearch);
   const input = $('#searchInput');
   input.value = '';
   $('#searchResults').innerHTML = '';
@@ -333,8 +341,7 @@ $('#searchInput').addEventListener('keydown', (e) => {
 function confirmChanges(changes, warnings) {
   return new Promise((resolve) => {
     if (!changes.length && !warnings.length) { resolve(true); return; }
-    const overlay = el('div', 'modal-overlay');
-    const box = el('div', 'modal');
+    const { box, close } = openModal({ onClose: (r) => resolve(r === true) });
     box.append(el('h3', null, `${changes.length} change${changes.length === 1 ? '' : 's'} will be written to the file`));
     if (warnings.length) {
       const warnBox = el('ul', 'warnlist');
@@ -354,12 +361,8 @@ function confirmChanges(changes, warnings) {
     const go = el('button', 'primary', 'Download');
     actions.append(cancel, go);
     box.append(actions);
-    overlay.append(box);
-    document.body.append(overlay);
-    const close = (result) => { overlay.remove(); resolve(result); };
     cancel.onclick = () => close(false);
     go.onclick = () => close(true);
-    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
     go.focus();
   });
 }
@@ -369,7 +372,7 @@ function confirmChanges(changes, warnings) {
 /** Offers to bring back a draft found for the file that was just opened. */
 async function offerDraftRestore(draft) {
   const when = new Date(draft.updatedAt).toLocaleString();
-  if (confirm(`Found unsaved edits for this file from ${when}. Restore them?`)) {
+  if (await confirmModal(`Found unsaved edits for this file from ${when}. Restore them?`, { confirmLabel: 'Restore' })) {
     const summary = restoreDraft(draft.bytes);
     renderSummary(summary);
     setDirty(true);
@@ -382,7 +385,7 @@ async function offerDraftRestore(draft) {
 }
 
 async function openFile(file) {
-  if (dirty && !confirm('You have unsaved edits. Discard them and open another file?')) return;
+  if (dirty && !(await confirmModal('You have unsaved edits. Discard them and open another file?', { confirmLabel: 'Discard', danger: true }))) return;
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const summary = openBytes(file.name, bytes);
@@ -438,7 +441,7 @@ addEventListener('drop', (e) => {
 });
 
 $('#reload').onclick = async () => {
-  if (dirty && !confirm('Discard every edit and go back to the file you opened?')) return;
+  if (dirty && !(await confirmModal('Discard every edit and go back to the file you opened?', { confirmLabel: 'Discard', danger: true }))) return;
   const r = await api('/api/reload', { body: '{}' });
   renderSummary(r.open);
   setDirty(false);
@@ -482,7 +485,7 @@ $('#write').onclick = async () => {
     await discardDraft();
     document.querySelectorAll('.changed').forEach((n) => n.classList.remove('changed'));
     renderChangesPanel([]);
-    toast(`Downloaded ${name} — copy it back over your save to use it`);
+    toast(`Downloaded ${name} — if your browser saved it as "${name} (1)" or similar, rename it back to "${name}" before copying it over your save`);
   } catch (e) { toast(e.message, true); }
 };
 

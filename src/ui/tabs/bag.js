@@ -1,6 +1,6 @@
 // The Bag tab: item pockets, the "max stack" bulk action, and the add-item form.
 
-import { itemSpriteUrl, attachSprite } from '../../sprites.js';
+import { itemSpriteUrl, attachSpriteOrPlaceholder } from '../../sprites.js';
 import { $, el } from '../dom.js';
 import {
   api, boundInput, setDirty, refreshUndoButtons, toast, ensureItemOptions, itemOpts, pickId,
@@ -10,6 +10,10 @@ import {
 // save uses that same number as the @pockets array index (see src/bag.js).
 const POCKETS = [null, 'Items', 'Medicine', 'Poké Balls', 'TMs & HMs', 'Berries',
   'Mail', 'Battle items', 'Key items'];
+
+// Pockets worth a one-click "give a full set" bulk action: a full healing
+// kit, every kind of Poké Ball, and every TM/HM this game declares.
+const GIVE_SET_POCKETS = new Set([2, 3, 4]);
 
 export async function loadBag() {
   const { pockets } = await api('/api/bag');
@@ -21,8 +25,8 @@ export async function loadBag() {
     const card = el('div', 'card');
     const h = el('h3', 'flexhead', pocketName);
     h.append(el('small', null, `${p.items.length} item${p.items.length === 1 ? '' : 's'}`));
+    if (p.items.length || GIVE_SET_POCKETS.has(p.pocket)) h.append(el('span', 'spacer'));
     if (p.items.length) {
-      h.append(el('span', 'spacer'));
       const maxBtn = el('button', 'tiny', 'Max stack');
       maxBtn.title = 'Set every item already in this pocket to the maximum stack size (999)';
       maxBtn.onclick = async () => {
@@ -36,6 +40,20 @@ export async function loadBag() {
       };
       h.append(maxBtn);
     }
+    if (GIVE_SET_POCKETS.has(p.pocket)) {
+      const giveBtn = el('button', 'tiny', 'Give a full set');
+      giveBtn.title = `Add one of every ${pocketName} item this game declares`;
+      giveBtn.onclick = async () => {
+        try {
+          const r = await api('/api/bag/giveSet', { method: 'POST', body: JSON.stringify({ pocket: p.pocket, qty: 1 }) });
+          setDirty(true);
+          refreshUndoButtons();
+          toast(`Gave ${r.count} item${r.count === 1 ? '' : 's'}`);
+          await loadBag();
+        } catch (e) { toast(e.message, true); }
+      };
+      h.append(giveBtn);
+    }
     card.append(h);
     if (!p.items.length) {
       card.append(el('div', 'empty', 'empty'));
@@ -48,7 +66,7 @@ export async function loadBag() {
         const tr = el('tr');
         tr.dataset.itemId = String(it.id);
         const iconc = el('td', 'iconcell');
-        attachSprite(iconc, itemSpriteUrl(it.internal), it.name, 'sprite item-sprite');
+        attachSpriteOrPlaceholder(iconc, itemSpriteUrl(it.internal), it.name, 'sprite item-sprite');
         const idc = el('td');
         idc.append(boundInput(tr, {
           type: 'int', value: it.id, path: it.idPath, scalar: true, label: `${pocketName}: item id`,

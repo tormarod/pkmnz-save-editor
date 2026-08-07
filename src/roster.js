@@ -8,10 +8,10 @@
 import {
   RArray, jsToStr, strToJs, getIvar as ivar, setIvar,
 } from './marshal.js';
-import { makePokemon, newMove } from './create.js';
+import { makePokemon, newMove, recalcStats } from './create.js';
 import { nameOf } from './labels.js';
 import { movePP, moveData, movesAtLevel, speciesData } from './gamedata.js';
-import { levelFromExperience } from './expTable.js';
+import { levelFromExperience, startExperience, MAXLEVEL } from './expTable.js';
 
 export const PARTY_MAX = 6;
 export const BOX_SIZE = 30;
@@ -160,6 +160,21 @@ export function healParty(save) {
   return { healed };
 }
 
+/** Rare candy the whole party to `level`: sets @exp to that level's threshold and recomputes stats. */
+export function setPartyLevel(save, level) {
+  const lvl = Math.max(1, Math.min(MAXLEVEL, Math.floor(Number(level)) || 1));
+  const party = partyArray(save);
+  let count = 0;
+  for (const mon of party.items) {
+    if (!mon || mon.t !== 'obj') continue;
+    const sd = speciesData(ivar(mon, '@species'));
+    setIvar(mon, '@exp', startExperience(lvl, sd.growthRate));
+    recalcStats(mon);
+    count++;
+  }
+  return { level: lvl, count };
+}
+
 function requirePokemon(mon) {
   if (!mon || mon.t !== 'obj' || mon.cls !== 'PokeBattle_Pokemon') {
     throw new Error('not a PokeBattle_Pokemon');
@@ -211,6 +226,30 @@ export function restoreMovePP(mon) {
     if (!id) continue;
     setIvar(m, '@pp', maxPP(id, ivar(m, '@ppup')));
   }
+}
+
+/** Set a Pokemon's six EVs (0-252 each), clamping each value; caller recalcs stats. */
+export function setEVs(mon, evs) {
+  requirePokemon(mon);
+  const clamped = (Array.isArray(evs) ? evs : []).map((v) => Math.max(0, Math.min(252, Math.floor(Number(v)) || 0)));
+  while (clamped.length < 6) clamped.push(0);
+  setIvar(mon, '@ev', RArray(clamped.slice(0, 6)));
+}
+
+/** Set a Pokemon's happiness/friendship to its max (255). */
+export function maxHappiness(mon) {
+  requirePokemon(mon);
+  setIvar(mon, '@happiness', 255);
+}
+
+/** Set every known move's PP Ups to the max (3) and refill PP to match. */
+export function maxPPUps(mon) {
+  requirePokemon(mon);
+  for (const m of ivar(mon, '@moves')?.items || []) {
+    if (!ivar(m, '@id')) continue;
+    setIvar(m, '@ppup', 3);
+  }
+  restoreMovePP(mon);
 }
 
 /** Reset a Pokemon's moves to the level-up set for its species and current level. */

@@ -6,7 +6,7 @@
 // Pocket field 1..8, and the save uses that same number as the array index.
 
 import { RArray, getIvar as ivar } from './marshal.js';
-import { itemExists, itemPocket } from './gamedata.js';
+import { itemExists, itemPocket, itemsInPocket } from './gamedata.js';
 
 /** The highest quantity a single bag entry can hold, per the game's item screen. */
 export const MAX_QUANTITY = 999;
@@ -51,6 +51,15 @@ export function removeItem(save, pocketIndex, itemIndex) {
   const [id] = pocket.items[itemIndex]?.items || [];
   pocket.items.splice(itemIndex, 1);
   return { id, count: pocket.items.length };
+}
+
+/** Add one of every item PBS declares for a pocket, at `qty` each (e.g. a full healing kit). */
+export function giveSet(save, pocketIndex, qty) {
+  const ids = itemsInPocket(pocketIndex);
+  if (!ids.length) throw new Error(`no items are declared for pocket ${pocketIndex}`);
+  let count = 0;
+  for (const item of ids) { addItem(save, { item, qty }); count++; }
+  return { count };
 }
 
 /** Set every item already in a pocket to the max stack size. */

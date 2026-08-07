@@ -73,3 +73,30 @@ export function attachSprite(parent, url, alt, cls) {
   parent.append(img);
   return img;
 }
+
+function placeholder(parent, alt, cls) {
+  const span = document.createElement('span');
+  span.className = `${cls} sprite-placeholder`;
+  span.title = alt || '';
+  parent.append(span);
+  return span;
+}
+
+/**
+ * Like attachSprite, but appends a neutral placeholder in the same slot when
+ * no URL resolves (or the image fails to load), so rows without an icon stay
+ * visually aligned with rows that have one.
+ */
+export function attachSpriteOrPlaceholder(parent, url, alt, cls) {
+  if (!url) return placeholder(parent, alt, cls);
+  const img = document.createElement('img');
+  img.className = cls;
+  img.src = url;
+  img.alt = alt || '';
+  img.loading = 'lazy';
+  img.onerror = () => {
+    img.replaceWith(placeholder(parent, alt, cls));
+  };
+  parent.append(img);
+  return img;
+}

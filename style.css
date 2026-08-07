@@ -226,6 +226,7 @@ table.items input { width: 100%; }
 /* sprites */
 .sprite { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; vertical-align: middle; flex: none; }
 .sprite.item-sprite { width: 20px; height: 20px; }
+.sprite-placeholder { display: inline-block; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--line); }
 .monhead .sprite { margin-right: 2px; }
 table.items td.iconcell { width: 26px; padding-right: 0; }
 

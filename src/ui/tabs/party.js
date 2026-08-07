@@ -5,6 +5,7 @@ import { NATURES } from '../../schema.js';
 import { startExperience } from '../../expTable.js';
 import { speciesSpriteUrl, itemSpriteUrl, attachSprite } from '../../sprites.js';
 import { $, el } from '../dom.js';
+import { confirmModal } from '../modal.js';
 import {
   api, boundInput, setValue, setDirty, refreshUndoButtons, toast,
   ensureItemOptions, ensureKindOptions, itemOpts, pickId,
@@ -83,7 +84,7 @@ function monCard(mon, title, loc) {
     };
     const del = el('button', 'tiny danger', 'Remove');
     del.onclick = async () => {
-      if (!confirm(`Remove ${monName}? This only takes effect once you write to disk.`)) return;
+      if (!(await confirmModal(`Remove ${monName}? This only takes effect once you write to disk.`, { confirmLabel: 'Remove', danger: true }))) return;
       try {
         await api('/api/pokemon/remove', {
           method: 'POST',
@@ -118,7 +119,51 @@ function monCard(mon, title, loc) {
         toast('Stats recalculated');
       } catch (e) { toast(e.message, true); }
     };
-    h.append(move, maxIVs, recalc);
+    const maxEVs = el('button', 'tiny', 'Max EVs');
+    maxEVs.title = 'Set every EV to 252 and recompute this Pokémon\'s stats';
+    maxEVs.onclick = async () => {
+      try {
+        await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs: [252, 252, 252, 252, 252, 252] }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed EVs for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const clearEVs = el('button', 'tiny', 'Clear EVs');
+    clearEVs.title = 'Set every EV to 0 and recompute this Pokémon\'s stats';
+    clearEVs.onclick = async () => {
+      try {
+        await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs: [0, 0, 0, 0, 0, 0] }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Cleared EVs for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const maxHappiness = el('button', 'tiny', 'Max happiness');
+    maxHappiness.title = 'Set friendship to 255';
+    maxHappiness.onclick = async () => {
+      try {
+        await api('/api/pokemon/maxHappiness', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed happiness for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    const maxPPUps = el('button', 'tiny', 'Max PP Ups');
+    maxPPUps.title = 'Set every move\'s PP Ups to 3 and refill PP to match';
+    maxPPUps.onclick = async () => {
+      try {
+        await api('/api/pokemon/maxPPUps', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
+        setDirty(true);
+        refreshUndoButtons();
+        await loadParty();
+        toast(`Maxed PP Ups for ${monName}`);
+      } catch (e) { toast(e.message, true); }
+    };
+    h.append(move, maxIVs, recalc, maxEVs, clearEVs, maxHappiness, maxPPUps);
     if (mon.egg) {
       const hatch = el('button', 'tiny', 'Hatch now');
       hatch.title = 'Instantly finish this egg\'s remaining steps and heal it to full HP';
@@ -207,6 +252,38 @@ function monCard(mon, title, loc) {
     if (STAT_HINT[s.ivar]) line.append(el('span', 'fieldhint', `(${STAT_HINT[s.ivar]})`));
     wrap.append(line);
     card.append(wrap);
+
+    // A 252/252/6 preset spread is the most common competitive EV layout;
+    // pick which two stats get 252 and which gets the last 6, rest stay 0.
+    if (s.ivar === '@ev') {
+      const spread = el('div', 'badges');
+      const mkSel = (deflt) => {
+        const sel = el('select', 'tiny');
+        STAT.forEach((name, i) => sel.append(new Option(name, i)));
+        sel.value = deflt;
+        return sel;
+      };
+      const selA = mkSel(0);
+      const selB = mkSel(1);
+      const selC = mkSel(2);
+      const applyBtn = el('button', 'tiny', 'Apply 252/252/6 spread');
+      applyBtn.title = 'Set two stats to 252 EVs, one to 6, the rest to 0';
+      applyBtn.onclick = async () => {
+        const evs = [0, 0, 0, 0, 0, 0];
+        evs[Number(selA.value)] = 252;
+        evs[Number(selB.value)] = 252;
+        evs[Number(selC.value)] = 6;
+        try {
+          await api('/api/pokemon/setEVs', { method: 'POST', body: JSON.stringify({ path: mon.path, evs }) });
+          setDirty(true);
+          refreshUndoButtons();
+          await loadParty();
+          toast(`Applied EV spread to ${monName}`);
+        } catch (e) { toast(e.message, true); }
+      };
+      spread.append(el('span', 'fieldhint', '252 in'), selA, el('span', 'fieldhint', '/ 252 in'), selB, el('span', 'fieldhint', '/ 6 in'), selC, applyBtn);
+      card.append(spread);
+    }
   }
 
   // Contest stats: plain 0-255 counters. The ivars may not exist yet on this
@@ -315,7 +392,7 @@ function monCard(mon, title, loc) {
     const relearn = el('button', 'tiny', 'Relearn level-up set');
     relearn.title = 'Replace this Pokémon\'s moves with what it would know at its current level';
     relearn.onclick = async () => {
-      if (!confirm(`Replace ${monName}'s moves with the level-up set for its current level?`)) return;
+      if (!(await confirmModal(`Replace ${monName}'s moves with the level-up set for its current level?`, { confirmLabel: 'Replace' }))) return;
       try {
         await api('/api/pokemon/moves/relearn', { method: 'POST', body: JSON.stringify({ path: mon.path }) });
         setDirty(true);
@@ -536,6 +613,26 @@ function draw() {
       } catch (e) { toast(e.message, true); }
     };
     ph.append(heal);
+
+    const candyLevel = el('input');
+    candyLevel.type = 'number';
+    candyLevel.min = 1;
+    candyLevel.max = 100;
+    candyLevel.value = 100;
+    candyLevel.title = 'Level to set the whole party to';
+    candyLevel.style.width = '55px';
+    const candy = el('button', 'tiny', 'Rare candy party to level');
+    candy.title = 'Set every party Pokémon to this level and recompute stats';
+    candy.onclick = async () => {
+      try {
+        const r = await api('/api/party/rareCandy', { method: 'POST', body: JSON.stringify({ level: Number(candyLevel.value) }) });
+        setDirty(true);
+        refreshUndoButtons();
+        toast(`Set ${r.count} Pokémon to level ${r.level}`);
+        await loadParty();
+      } catch (e) { toast(e.message, true); }
+    };
+    ph.append(candy, candyLevel);
   }
   pc.append(ph);
   body.append(pc);

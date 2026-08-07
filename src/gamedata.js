@@ -91,6 +91,15 @@ export function itemPocket(id) {
   return data().items[id]?.pocket || null;
 }
 
+/** Every item id belonging to a pocket (1..N, matching items.txt's Pocket field). */
+export function itemsInPocket(pocketIndex) {
+  const items = data().items;
+  return Object.keys(items)
+    .map(Number)
+    .filter((id) => items[id]?.pocket === pocketIndex)
+    .sort((a, b) => a - b);
+}
+
 export function movePP(id) {
   return data().moves[id]?.pp ?? 5;
 }

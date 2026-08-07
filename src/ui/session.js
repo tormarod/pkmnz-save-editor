@@ -26,6 +26,9 @@ export function toast(msg, bad = false) {
   const t = $('#toast');
   t.textContent = msg;
   t.classList.toggle('bad', bad);
+  // An error deserves an assertive announcement that interrupts the screen
+  // reader; a routine confirmation only needs the polite queue.
+  t.setAttribute('aria-live', bad ? 'assertive' : 'polite');
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), bad ? 6000 : 2500);

@@ -169,21 +169,21 @@ through the Raw tree. The labelling was the hard part and it is already done.
     changes nothing a user can see, so it should land together with item 1
     rather than as a standalone commit.
 
-20. **Item icons cover ~80 curated vanilla items** (`src/sprites.js:27`);
+20. **(done)** **Item icons cover ~80 curated vanilla items** (`src/sprites.js:27`);
     everything else renders nothing, leaving ragged rows. A neutral placeholder
     keeps the bag table aligned, and is honest about the fact that this
     fangame's item set cannot be mapped to a public sprite source.
 
 ## Tier 5 — a second round of bulk actions
 
-21. Each is a few lines on top of the existing `/api/*` bulk-action pattern in
+21. **(done)** Each is a few lines on top of the existing `/api/*` bulk-action pattern in
     `src/localApi.js` and its helper in `src/roster.js` / `src/bag.js`:
 
-    - **Rare candy** — set the whole party to level N (one `startExperience()`
+    - **(done)** **Rare candy** — set the whole party to level N (one `startExperience()`
       write plus `recalcStats()` per Pokémon),
-    - **Max EVs / clear EVs / preset spreads** (252/252/6),
-    - **Max happiness**, **max PP Ups**,
-    - **Give a set** — all Poké Balls, all TMs, a full healing kit,
+    - **(done)** **Max EVs / clear EVs / preset spreads** (252/252/6),
+    - **(done)** **Max happiness**, **max PP Ups**,
+    - **(done)** **Give a set** — all Poké Balls, all TMs, a full healing kit,
     - **(done)** **Egg tools** — "hatch now" (clear `@eggsteps`, set `@obtainMode` to 1),
       and "make this an egg" using the species' real `StepsToHatch` from item 19
       instead of `makePokemon()`'s current placeholder of 1. This closes the
@@ -191,15 +191,20 @@ through the Raw tree. The labelling was the hard part and it is already done.
 
 ## Loose ends
 
-- The download reuses the original filename, so a browser saves it as
+- **(done)** The download reuses the original filename, so a browser saves it as
   `Game (1).rxdata` and the user must rename it before copying it back. The
   success toast should say so.
-- `confirm()` and `alert()` are still used for the destructive prompts
+- **(done)** `confirm()` and `alert()` are still used for the destructive prompts
   (`app.js:131`, `app.js:144`, and the remove-Pokémon confirm in
   `src/ui/tabs/party.js:47`) while a proper modal already exists for the change
-  summary. Unifying them also fixes focus handling.
-- Toasts are not announced to screen readers — `#toast` needs `aria-live`, and
-  the change modal needs focus trapping and Escape to close.
+  summary. Unifying them also fixes focus handling. (No `alert()` calls existed;
+  every `confirm()` call site now goes through the shared `confirmModal()` in
+  `src/ui/modal.js`, which also backs the change-summary modal.)
+- **(done)** Toasts are not announced to screen readers — `#toast` needs `aria-live`, and
+  the change modal needs focus trapping and Escape to close. (`#toast` now
+  carries `role="status"` and a dynamic `aria-live`; every modal overlay,
+  including the global search overlay, shares a Tab focus trap and
+  Escape-to-close via `src/ui/modal.js`.)
 
 ## Suggested order
 

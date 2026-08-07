@@ -514,6 +514,46 @@ const ROUTES = {
     return { ...r, party: views.party(s) };
   },
 
+  '/api/party/rareCandy': (b) => {
+    const s = need();
+    pushUndo();
+    const r = roster.setPartyLevel(s, b.level);
+    state.dirty = true;
+    if (r.count) recordChange(`Set the whole party to level ${r.level} (${r.count} Pokémon)`);
+    return { ...r, party: views.party(s) };
+  },
+
+  '/api/pokemon/setEVs': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.setEVs(mon, b.evs);
+    const r = recalcStats(mon);
+    state.dirty = true;
+    recordChange(`Set EVs for ${monLabel(mon)}`);
+    return { ok: true, ...r };
+  },
+
+  '/api/pokemon/maxHappiness': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.maxHappiness(mon);
+    state.dirty = true;
+    recordChange(`Maxed happiness for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
+  '/api/pokemon/maxPPUps': (b) => {
+    const s = need();
+    pushUndo();
+    const mon = s.get(b.path);
+    roster.maxPPUps(mon);
+    state.dirty = true;
+    recordChange(`Maxed PP Ups for ${monLabel(mon)}`);
+    return { ok: true };
+  },
+
   '/api/box/setField': (b) => {
     const s = need();
     pushUndo();
@@ -568,6 +608,16 @@ const ROUTES = {
     const r = bag.maxPocket(s, Number(b.pocket));
     state.dirty = true;
     if (r.count) recordChange(`Maxed the quantity of ${r.count} item${r.count === 1 ? '' : 's'} in pocket ${Number(b.pocket)}`);
+    return { ...r, pockets: views.bag(s) };
+  },
+
+  '/api/bag/giveSet': (b) => {
+    const s = need();
+    pushUndo();
+    const qty = b.qty !== undefined ? Number(b.qty) : 1;
+    const r = bag.giveSet(s, Number(b.pocket), qty);
+    state.dirty = true;
+    if (r.count) recordChange(`Gave ${qty}x of every item in pocket ${Number(b.pocket)} (${r.count} items)`);
     return { ...r, pockets: views.bag(s) };
   },
 };
