@@ -1,0 +1,44 @@
+name: CI
+
+# The same checks the deploy runs, but on the pull request, so a break shows up
+# before it is merged instead of failing the deploy afterwards. Keep these steps
+# in step with the ones in deploy.yml, which still gates the deploy itself.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      # No dependencies to install: the app is plain ES modules and the tests
+      # are plain Node. The suites that need a game install skip themselves.
+      - name: Unit tests
+        run: npm test
+
+      - name: Build the site
+        run: node tools/build-site.js
+
+      # Nothing is bundled, so a bad import path or a missing data file would
+      # otherwise only turn up as a white screen once deployed.
+      - name: Install Chromium for the smoke test
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: node test/smoke.js
